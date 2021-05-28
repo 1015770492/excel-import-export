@@ -17,10 +17,10 @@ public class ExcelImportTest {
     public static void main(String[] args) {
         System.out.println("=====年度数据======");
         String fileName = "1.xlsx";
-        importData(fileName, RegionYearETLSyncResponse.class);
+        importData(fileName, ExcelImportTemplateForYear.class);
         System.out.println("=====季度数据======");
         fileName = "2.xlsx";
-        importData(fileName, RegionQuarterETLSyncResponse.class);
+        importData(fileName, ExcelImportTemplateForQuarter.class);
     }
 
     private static void importData(String fileName, Class clazz) {

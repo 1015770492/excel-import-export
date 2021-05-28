@@ -15,7 +15,7 @@ import java.math.BigDecimal;
  */
 @Data
 @ExcelTableHeaderAnnotation(height = 4, tableName = "区域季度数据")// 表头占4行
-public class RegionQuarterETLSyncResponse {
+public class ExcelImportTemplateForQuarter {
 
 
     /**
