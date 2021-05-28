@@ -33,7 +33,7 @@
 
 ### 1、导入excel数据并转换为List记录（后续数据库操作可以直接用MybatisPlus的批量插入即可）
 
-导入示例在 top.yumbo.test.excel.ExcelImportTest 类的main方法
+导入示例在 top.yumbo.test.excel.ExcelImportDemo 类的main方法
 1.xls是测试用的表格
 以下面的这张表为例：
 

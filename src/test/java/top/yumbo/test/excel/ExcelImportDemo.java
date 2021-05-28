@@ -10,7 +10,7 @@ import java.io.FileInputStream;
 import java.util.List;
 
 
-public class ExcelImportTest {
+public class ExcelImportDemo {
     /**
      * 将excel转换为List类型的数据 示例代码
      */
