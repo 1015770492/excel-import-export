@@ -41,7 +41,22 @@ public @interface ExcelCellBindAnnotation {
      * 正则截取单元格内容
      * 一个单元格中的部分内容，例如 2020年2季度，只想单独取出年、季度这两个数字
      */
-    String pattern() default "";
+    String importPattern() default "";
+
+    /**
+     * 导出的字符串格式化填入，利用StringFormat.format进行字符串占位和替换
+     */
+    String exportFormat() default "";
+
+    /**
+     * 导出功能，该字段可能是多个单元格的内容（连续单元格），按照split拆分填充
+     */
+    String exportSplit() default "";
+
+    /**
+     * 合并多个字段的顺序，多个字段构成一个标题，例如时间 年+季度
+     */
+    int exportPriority() default 1;
 
     /**
      * 默认不可以为空
@@ -51,7 +66,7 @@ public @interface ExcelCellBindAnnotation {
     /**
      * 这行标题在第几行
      */
-    int row() default 0;
+    //int row() default 0;
 
     /**
      * 单元格索引位置

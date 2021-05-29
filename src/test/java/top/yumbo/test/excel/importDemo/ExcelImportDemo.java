@@ -1,4 +1,4 @@
-package top.yumbo.test.excel;
+package top.yumbo.test.excel.importDemo;
 
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -9,7 +9,10 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.util.List;
 
-
+/**
+ * @author jinhua
+ * @date 2021/5/28 14:28
+ */
 public class ExcelImportDemo {
     /**
      * 将excel转换为List类型的数据 示例代码
