@@ -49,7 +49,7 @@ public @interface ExcelCellBindAnnotation {
     String exportFormat() default "";
 
     /**
-     * 导出功能，该字段可能是多个单元格的内容（连续单元格），按照split拆分填充
+     * 导出功能，该字段可能是多个单元格的内容（连续单元格），按照split拆分和填充。默认逗号
      */
     String exportSplit() default "";
 

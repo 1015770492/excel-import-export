@@ -3,17 +3,21 @@ package top.yumbo.excel.util;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import org.apache.poi.ss.formula.functions.T;
-import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
 import org.springframework.util.StringUtils;
 import top.yumbo.excel.annotation.ExcelCellBindAnnotation;
 import top.yumbo.excel.annotation.ExcelTableHeaderAnnotation;
-import top.yumbo.excel.enumeration.ExceptionMsg;
 
-import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -69,48 +73,166 @@ public class ExcelImportExportUtils {
     }
 
     /**
+     * 填充List数据数据
+     *
+     * @param list  数据集
+     * @param sheet 待填入的excel表格
+     * @throws Exception 抛出的异常
+     */
+    public static <T> void filledListToSheet(List<T> list, Sheet sheet) throws Exception {
+        if (list != null && sheet != null && list.size() > 0) {
+            final JSONArray jsonArray = listToJSONArray(list);
+            final JSONObject excelExportPartDescData = getExcelExportPartDescData(list.get(0).getClass(), sheet);
+            System.out.println(excelExportPartDescData);
+            filledListToSheet(jsonArray, excelExportPartDescData, sheet);
+        } else if (list == null) {
+            throw new Exception("list不能为空");
+        } else {
+            throw new Exception("sheet不能为空");
+        }
+    }
+
+    /**
+     * list转JSONArray
+     *
+     * @param list 集合
+     */
+    private static JSONArray listToJSONArray(List<?> list) {
+        return JSONObject.parseArray(JSONObject.toJSONString(list));
+    }
+
+    /**
      * 存在模板的情况下
      * 将数据填充进入Excel表格
      */
-    private static Sheet filledListToSheet(List<T> list, Sheet sheet) {
-        // 进行填充
-        final List<JSONObject> jsonObjectList = JSONArray.parseArray(JSONArray.toJSONString(list), JSONObject.class);
-        jsonObjectList.forEach(obj -> {
+    public static void filledListToSheet(JSONArray jsonArray, JSONObject excelDescData, Sheet sheet) throws Exception {
+        JSONObject tableHeaderDesc = excelDescData.getJSONObject(ExcelTable.TABLE_HEADER.name());
+        JSONObject tableBodyDesc = excelDescData.getJSONObject(ExcelTable.TABLE_BODY.name());
+        final Integer height = tableHeaderDesc.getInteger(ExcelTable.TABLE_HEADER_HEIGHT.name());// 得到表头占多少行
+        // 一行一行填充
+        for (int i = 0; i < jsonArray.size(); i++) {
+            final Row row = sheet.createRow(height + 1 + i);// 创建一行数据
+            final JSONObject json = (JSONObject) jsonArray.get(i);// 得到这条数据
+            AtomicReference<Exception> exception = new AtomicReference<>();
+            tableBodyDesc.forEach((index, v) -> {
+                // 给这个 index单元格 填入 value
+                Cell cell = row.createCell(Integer.parseInt(index));// 得到单元格
 
+                if (v instanceof JSONArray) {
+                    // 多个字段合并成一个单元格内容
+                    JSONArray array = (JSONArray) v;
+                    String[] linkedFormatString = new String[array.size()];
+                    final AtomicInteger atomicInteger = new AtomicInteger(0);
+                    array.forEach(obj -> {
+                        // 处理每一个字段
+                        JSONObject fieldDescData = (JSONObject) obj;
+                        // 得到转换后的内容
+                        final String resultValue = getResultValue(json, fieldDescData);
+                        linkedFormatString[atomicInteger.getAndIncrement()] = resultValue;// 存入该位置
+                    });
+                    final StringBuilder stringBuilder = new StringBuilder();
+                    for (int j = 0; j < linkedFormatString.length; j++) {
+                        stringBuilder.append(linkedFormatString[j]);
+                    }
+                    String value = stringBuilder.toString();// 得到了合并后的内容
+                    cell.setCellValue(value);
 
-//            obj.get()
+                } else {
+                    // 一个字段可能要拆成多个单元格
+                    JSONObject jsonObject = (JSONObject) v;
+                    final String format = jsonObject.getString(ExcelCell.FORMAT.name());
+                    final Integer priority = jsonObject.getInteger(ExcelCell.PRIORITY.name());
+                    final String fieldName = jsonObject.getString(ExcelCell.FIELD_NAME.name());
+                    final String split = jsonObject.getString(ExcelCell.SPLIT.name());
+                    final String fieldValue = String.valueOf(json.get(fieldName));// 得到字段值
+                    final Integer width = jsonObject.getInteger(ExcelCell.WIDTH.name());
 
-        });
-        // 得到完整的描述信息
-        JSONObject fulledExcelDescData = getFulledExcelDescData(T.class, sheet);
+                    if (width > 1) {
+                        // 一个字段需要拆分成多个单元格
+                        if (StringUtils.hasText(split)) {
+                            // 有拆分词
+                            final String[] splitArray = fieldValue.split(split);// 先拆分字段
+                            if (StringUtils.hasText(format)) {
+                                // 有格式化模板
+                                final String[] formatStr = format.split(split);// 拆分后的格式化内容
+                                for (int j = 0; j < width; j++) {
+                                    cell = row.createCell(Integer.parseInt(index) + j);// 得到单元格
+                                    String formattedStr = formatStr[j].replace("$" + j, splitArray[j]);// 替换字符串
+                                    cell.setCellValue(formattedStr);// 将格式化后的字符串填入
+                                }
+                            } else {
+                                // 没有格式化模板直接填入内容
+                                for (int j = 0; j < width; j++) {
+                                    cell = row.createCell(Integer.parseInt(index) + j);// 得到单元格
+                                    String formattedStr = format.replace("$" + j, splitArray[j]);// 替换字符串
+                                    cell.setCellValue(formattedStr);// 将格式化后的字符串填入
+                                }
+                            }
 
+                        } else {
+                            // 没有拆分词，本身需要拆分，抛异常
+                            exception.set(new Exception(fieldName + "字段的注解上 缺少exportSplit拆分词"));
+                        }
+                    } else {
+                        // 一个字段不需要拆成多个单元格
+                        if (StringUtils.hasText(format)) {
+                            // 内容存在格式化先进行格式化，然后填入值
+                            String replacedStr = format.replace("$" + priority, fieldValue);// 替换字符串
+                            cell.setCellValue(replacedStr);// 设置单元格内容
+                        } else {
+                            // 内容不需要格式化则直接填入
+                            cell.setCellValue(String.valueOf(json.get(ExcelCell.FIELD_NAME.name())));
+                        }
+                    }
+                }
+            });
 
-        Workbook workbook = null;
-        Sheet cloneSheet = workbook.cloneSheet(workbook.getSheetIndex(sheet));
+            if (exception.get() != null) {
+                throw exception.get();
+            }
+        }
 
-        return null;
     }
-
 
     /**
-     * 生成简单Excel表
+     * 得到对象的值
      *
-     * @param list  数据集
-     * @param sheet excel表格
+     * @param jsonObject    实体数据转换的JSONObject
+     * @param fieldDescData 字段规则描述数据
+     * @return 处理后的字符串
      */
-    public static Workbook generateSimpleExcel(List<T> list, Sheet sheet) {
-
-
-        // 根据反射获取表的所有信息
-        JSONObject excelDescData = getExcelPartDescData(T.class);
-        // 从所有数据中得到表头描述
-        JSONObject excelHeaderDescData = getExcelHeaderDescData(excelDescData);
-        // 从表头得到body数据，里面有title、index、field的绑定关系
-        JSONObject excelBodyDescData = getExcelBodyDescData(excelDescData);
-
-        Sheet filledSheet = filledListToSheet(list, sheet);
-        return null;
+    private static String getResultValue(JSONObject jsonObject, JSONObject fieldDescData) {
+        final String format = fieldDescData.getString(ExcelCell.FORMAT.name());
+        final Integer priority = fieldDescData.getInteger(ExcelCell.PRIORITY.name());
+        final String fieldName = fieldDescData.getString(ExcelCell.FIELD_NAME.name());
+        // 从对象中得到这个字段值
+        final String fieldValue = String.valueOf(jsonObject.get(fieldName));// 得到这个字段值
+        // 替换字符串
+        return format.replace("$" + priority, fieldValue);
     }
+//    private static JSONObject getSheetTitleDesc(Sheet sheet,Class<T> tClass){
+//
+//    }
+
+//    /**
+//     * 生成简单Excel表
+//     *
+//     * @param list  数据集
+//     * @param sheet excel表格
+//     */
+//    public static Workbook generateSimpleExcel(List<T> list, Sheet sheet) {
+//
+//
+//        // 根据反射获取表的所有信息
+//        JSONObject excelDescData = getExcelPartDescData(T.class);
+//        // 从所有数据中得到表头描述
+//        JSONObject excelHeaderDescData = getExcelHeaderDescData(excelDescData);
+//        // 从表头得到body数据，里面有title、index、field的绑定关系
+//        JSONObject excelBodyDescData = getExcelBodyDescData(excelDescData);
+//
+//        Sheet filledSheet = filledListToSheet(list, sheet);
+//        return null;
+//    }
 
 //    private static Sheet getResource(String resource) {
 //        String proto = resource.split("://")[0];
@@ -156,7 +278,7 @@ public class ExcelImportExportUtils {
                 String exception = rowDesc.getString(ExcelCell.EXCEPTION.name());// 转换异常返回的消息
                 String size = rowDesc.getString(ExcelCell.SIZE.name());// 得到规模
                 boolean nullable = rowDesc.getBoolean(ExcelCell.NULLABLE.name());
-                String positionMessage = "第" + rowNum + "行的,第" + (index + 1) + "列 ---标题：" + title + " -- ";
+                String positionMessage = "异常：第" + rowNum + "行的,第" + (index + 1) + "列 ---标题：" + title + " -- ";
 
                 // 得到异常消息
                 message = positionMessage + exception;
@@ -254,7 +376,7 @@ public class ExcelImportExportUtils {
      * @param excelDescData excel的描述信息
      * @param sheet         待解析的excel表格
      */
-    private static JSONObject parseSheetAndFillTitleIndex(JSONObject excelDescData, Sheet sheet) {
+    private static JSONObject filledTitleIndexBySheet(JSONObject excelDescData, Sheet sheet) {
         JSONObject tableHeaderDesc = excelDescData.getJSONObject(ExcelTable.TABLE_HEADER.name());
         JSONObject tableBodyDesc = excelDescData.getJSONObject(ExcelTable.TABLE_BODY.name());
 
@@ -279,13 +401,9 @@ public class ExcelImportExportUtils {
             }
 
         });
-
+        System.out.println(excelDescData);
         return excelDescData;
     }
-
-//    private static Row entityToRow(){
-//
-//    }
 
     /**
      * 获取完整的Excel描述信息
@@ -298,7 +416,7 @@ public class ExcelImportExportUtils {
         // 获取表格部分描述信息（根据泛型得到的）
         JSONObject partDescData = getExcelPartDescData(tClass);
         // 根据相同标题填充index
-        return parseSheetAndFillTitleIndex(partDescData, sheet);
+        return filledTitleIndexBySheet(partDescData, sheet);
     }
 
     /**
@@ -316,35 +434,33 @@ public class ExcelImportExportUtils {
         JSONObject tableHeader = new JSONObject();// 表中主体数据信息
 
         // 1、先得到表头信息
-        Annotation clazzAnnotation = clazz.getAnnotation(ExcelTableHeaderAnnotation.class);
-        if (clazzAnnotation != null) {
-            ExcelTableHeaderAnnotation tableHeaderAnnotation = (ExcelTableHeaderAnnotation) clazzAnnotation;
+        final ExcelTableHeaderAnnotation tableHeaderAnnotation = clazz.getAnnotation(ExcelTableHeaderAnnotation.class);
+        if (tableHeaderAnnotation != null) {
             tableHeader.put(ExcelTable.TABLE_NAME.name(), tableHeaderAnnotation.tableName());// 表的名称
             tableHeader.put(ExcelTable.TABLE_HEADER_HEIGHT.name(), tableHeaderAnnotation.height());// 表头的高度
 
             // 2、得到表的Body信息
             for (Field field : fields) {
-                Annotation[] annotations = field.getDeclaredAnnotations();// 获取字段上所有注解
-                for (Annotation annotation : annotations) {
-                    if (annotation instanceof ExcelCellBindAnnotation) {// 找到自定义的注解
-                        ExcelCellBindAnnotation annotationTitle = (ExcelCellBindAnnotation) annotation;// 进行强转
-                        JSONObject cellDesc = new JSONObject();// 单元格描述信息
-                        String title = annotationTitle.title();         // 获取标题，如果标题不存在则不进行处理
-                        if (StringUtils.hasText(title)) {
+                final ExcelCellBindAnnotation annotationTitle = field.getDeclaredAnnotation(ExcelCellBindAnnotation.class);
+                if (annotationTitle != null) {// 找到自定义的注解
+                    JSONObject cellDesc = new JSONObject();// 单元格描述信息
+                    String title = annotationTitle.title();         // 获取标题，如果标题不存在则不进行处理
+                    if (StringUtils.hasText(title)) {
 
-                            cellDesc.put(ExcelCell.TITLE_NAME.name(), title);// 标题名称
-                            cellDesc.put(ExcelCell.FIELD_NAME.name(), field.getName());// 字段名称
-                            cellDesc.put(ExcelCell.FIELD_TYPE.name(), field.getType().getTypeName());// 字段的类型
-                            cellDesc.put(ExcelCell.WIDTH.name(), annotationTitle.width());// 单元格的宽度（宽度为2代表合并了2格单元格）
-                            cellDesc.put(ExcelCell.EXCEPTION.name(), annotationTitle.exception());// 校验如果失败返回的异常消息
-                            cellDesc.put(ExcelCell.INDEX.name(), annotationTitle.index());// 默认的索引位置
-                            cellDesc.put(ExcelCell.SIZE.name(), annotationTitle.size());// 规模,记录规模(亿元/万元)
-                            cellDesc.put(ExcelCell.PATTERN.name(), annotationTitle.importPattern());// 正则表达式
-                            cellDesc.put(ExcelCell.NULLABLE.name(), annotationTitle.nullable());// 是否可空
-
-                            // 以字段名作为key
-                            tableBody.put(field.getName(), cellDesc);// 存入这个标题名单元格的的描述信息，后面还需要补全INDEX
-                        }
+                        cellDesc.put(ExcelCell.TITLE_NAME.name(), title);// 标题名称
+                        cellDesc.put(ExcelCell.FIELD_NAME.name(), field.getName());// 字段名称
+                        cellDesc.put(ExcelCell.FIELD_TYPE.name(), field.getType().getTypeName());// 字段的类型
+                        cellDesc.put(ExcelCell.WIDTH.name(), annotationTitle.width());// 单元格的宽度（宽度为2代表合并了2格单元格）
+                        cellDesc.put(ExcelCell.EXCEPTION.name(), annotationTitle.exception());// 校验如果失败返回的异常消息
+                        cellDesc.put(ExcelCell.INDEX.name(), annotationTitle.index());// 默认的索引位置
+                        cellDesc.put(ExcelCell.SIZE.name(), annotationTitle.size());// 规模,记录规模(亿元/万元)
+                        cellDesc.put(ExcelCell.PATTERN.name(), annotationTitle.importPattern());// 正则表达式
+                        cellDesc.put(ExcelCell.NULLABLE.name(), annotationTitle.nullable());// 是否可空
+                        cellDesc.put(ExcelCell.SPLIT.name(), annotationTitle.exportSplit());// 导出字段的拆分
+                        cellDesc.put(ExcelCell.FORMAT.name(), annotationTitle.exportFormat());// 导出的模板格式
+                        cellDesc.put(ExcelCell.PRIORITY.name(), annotationTitle.exportPriority());// 导出拼串的顺序
+                        // 以字段名作为key
+                        tableBody.put(field.getName(), cellDesc);// 存入这个标题名单元格的的描述信息，后面还需要补全INDEX
                     }
                 }
             }
@@ -355,50 +471,98 @@ public class ExcelImportExportUtils {
     }
 
 
-    private static JSONObject getExcelExportPartDescData(Class<?> clazz) {
+    /**
+     * 获取导出所需要的所有信息
+     *
+     * @param clazz 传入的泛型，注解信息
+     * @param sheet excel表格
+     * @return 表格的信息
+     */
+    public static JSONObject getExcelExportPartDescData(Class<?> clazz, Sheet sheet) {
         Field[] fields = clazz.getDeclaredFields();// 获取所有字段
-        JSONObject excelDescData = new JSONObject();// excel的描述数据
-        JSONObject tableBody = new JSONObject();// 表中主体数据信息
         JSONObject tableHeader = new JSONObject();// 表中主体数据信息
+        JSONObject tableBody = new JSONObject();// 表中主体数据信息
+        JSONObject excelDescData = new JSONObject();// excel的描述数据
 
         // 1、先得到表头信息
-        Annotation clazzAnnotation = clazz.getAnnotation(ExcelTableHeaderAnnotation.class);
-        if (clazzAnnotation != null) {
-            ExcelTableHeaderAnnotation tableHeaderAnnotation = (ExcelTableHeaderAnnotation) clazzAnnotation;
+        final ExcelTableHeaderAnnotation tableHeaderAnnotation = clazz.getDeclaredAnnotation(ExcelTableHeaderAnnotation.class);
+        if (tableHeaderAnnotation != null) {
             tableHeader.put(ExcelTable.TABLE_NAME.name(), tableHeaderAnnotation.tableName());// 表的名称
             tableHeader.put(ExcelTable.TABLE_HEADER_HEIGHT.name(), tableHeaderAnnotation.height());// 表头的高度
             tableHeader.put(ExcelTable.RESOURCE.name(), tableHeaderAnnotation.resource());// 模板excel的访问路径
 
+            final LinkedHashMap<Integer, JSONObject> linkedHashMap = new LinkedHashMap<>();
             // 2、得到表的Body信息
             for (Field field : fields) {
-                Annotation[] annotations = field.getDeclaredAnnotations();// 获取字段上所有注解
-                for (Annotation annotation : annotations) {
-                    if (annotation instanceof ExcelCellBindAnnotation) {// 找到自定义的注解
-                        ExcelCellBindAnnotation annotationTitle = (ExcelCellBindAnnotation) annotation;// 进行强转
-                        JSONArray cellDesc = new JSONArray();// 单元格描述信息
-                        String title = annotationTitle.title();         // 获取标题，如果标题不存在则不进行处理
-                        if (StringUtils.hasText(title)) {
+                final ExcelCellBindAnnotation annotationTitle = field.getDeclaredAnnotation(ExcelCellBindAnnotation.class);// 获取ExcelCellBindAnnotation注解
+                if (annotationTitle != null) {// 找到自定义的注解
+                    JSONObject titleDesc = new JSONObject();// 单元格描述信息
+                    String title = annotationTitle.title();         // 获取标题，如果标题不存在则不进行处理
+                    if (StringUtils.hasText(title)) {
+                        // 根据标题找到索引
+                        int titleIndexFromSheet = getTitleIndexFromSheet(title, sheet, tableHeaderAnnotation.height());
+                        String titleIndexString = "" + titleIndexFromSheet;// 字符串类型 标题的下标
 
-//                            cellDesc.put(ExcelCell.FIELD_NAME.name(), field.getName());// 字段名称
-//                            cellDesc.put(ExcelCell.FIELD_TYPE.name(), field.getType().getTypeName());// 字段的类型
-//                            cellDesc.put(ExcelCell.WIDTH.name(), annotationTitle.width());// 单元格的宽度（宽度为2代表合并了2格单元格）
-//                            cellDesc.put(ExcelCell.INDEX.name(), annotationTitle.index());// 默认的索引位置
-//                            cellDesc.put(ExcelCell.FORMAT.name(), annotationTitle.exportFormat());// 导出的格式
-//                            cellDesc.put(ExcelCell.PRIORITY.name(), annotationTitle.exportPriority());// 导出格式拼串顺序
-//                            cellDesc.put(ExcelCell.SPLIT.name(), annotationTitle.exportSplit());// 导出字符串拆分为多个单元格（州市+区县）
+                        titleDesc.put(ExcelCell.WIDTH.name(), annotationTitle.width());// 单元格的宽度（宽度为2代表合并了2格单元格）
+                        titleDesc.put(ExcelCell.SPLIT.name(), annotationTitle.exportSplit());// 导出字符串拆分为多个单元格（州市+区县）
+                        titleDesc.put(ExcelCell.FIELD_NAME.name(), field.getName());// 导出字符串拆分为多个单元格（州市+区县）
+                        titleDesc.put(ExcelCell.FORMAT.name(), annotationTitle.exportFormat());// 这个字段输出的格式
+                        titleDesc.put(ExcelCell.PRIORITY.name(), annotationTitle.exportPriority());// 这个字段输出的格式
 
-                            // 以字段名作为key
-                            tableBody.put(title, cellDesc);// 存入这个标题名单元格的的描述信息，后面还需要补全INDEX
+                        // 该字段是否有同title的注解
+                        if (tableBody.containsKey(titleIndexString)) {
+                            final Object obj = tableBody.get(titleIndexString);// 得到原先的对象（可能是Array也可能是object）
+                            if (obj instanceof JSONArray) {
+                                JSONArray array = (JSONArray) obj;
+                                array.add(titleDesc);// 原先是数组直接添加
+                            } else {
+                                // 不是数组则转换为数组，并且将原先的对象存入数组
+                                final JSONArray array = new JSONArray();
+                                array.add(obj);// 存入原先的
+                                array.add(titleDesc);// 存入当前的
+                                tableBody.put(titleIndexString, array);// JSONObject转化为JSONArray
+                            }
+                        } else {
+                            // 没有相同的title则直接添加
+                            tableBody.put(titleIndexString, titleDesc);
                         }
                     }
                 }
             }
+            /**
+             * 处理部分jsonArray
+             */
         }
         excelDescData.put(ExcelTable.TABLE_HEADER.name(), tableHeader);// 将表头记录信息注入
         excelDescData.put(ExcelTable.TABLE_BODY.name(), tableBody);// 将表的body记录信息注入
         return excelDescData;// 返回记录的所有信息
     }
 
+
+    /**
+     * 根据标题获取标题在excel中的下标位子
+     *
+     * @param title      标题名
+     * @param sheet      excel的表格
+     * @param scanRowNum 表头末尾所在的行数（扫描0-scanRowNum所有行）
+     * @return 标题的索引
+     */
+    private static int getTitleIndexFromSheet(String title, Sheet sheet, int scanRowNum) {
+        int index = -1;
+        // 扫描包含表头的那几行 记录需要记录的标题所在的索引列，填充INDEX
+        for (int i = 0; i < scanRowNum; i++) {
+            Row row = sheet.getRow(i);// 得到第i行数据（在表头内）
+            // 遍历这行所有单元格，然后得到表头进行比较找到标题和注解上的titleName相同的单元格
+            for (Cell cell : row) {// 得到单元格内容（统一为字符串类型）
+                String titleName = getStringCellValue(cell);
+                // 如果标题相同找到了这单元格，获取单元格下标存入
+                if (title.equals(titleName)) {
+                    return cell.getColumnIndex();
+                }
+            }
+        }
+        return index;
+    }
 
     /**
      * 单元格内容统一返回字符串类型的数据
@@ -502,8 +666,7 @@ public class ExcelImportExportUtils {
     /**
      * 根据类型的字符串得到返回类型
      */
-    private static Object cast(String inputValue, String aClass, String exception, String size) throws
-            ClassCastException {
+    private static Object cast(String inputValue, String aClass, String exception, String size) throws ClassCastException {
         return cast(inputValue, clazzMap.get(aClass), exception, size);// 调用hashMap返回真正的类型
     }
 
@@ -545,7 +708,7 @@ public class ExcelImportExportUtils {
         } catch (Exception e) {
             System.out.println(inputValue);
             System.out.println(exception);
-            throw new ClassCastException("类型转换异常，输入的文本内容：" + inputValue + "\n");
+            throw new ClassCastException("类型转换异常，输入的文本内容：" + inputValue);
             //e.printStackTrace();
         }
 
