@@ -56,7 +56,7 @@ public @interface ExcelCellBindAnnotation {
     /**
      * 合并多个字段的顺序，多个字段构成一个标题，例如时间 年+季度
      */
-    int exportPriority() default 1;
+    int exportPriority() default 0;
 
     /**
      * 默认不可以为空

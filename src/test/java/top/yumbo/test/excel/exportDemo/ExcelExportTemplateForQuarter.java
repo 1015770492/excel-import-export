@@ -24,7 +24,7 @@ public class ExcelExportTemplateForQuarter {
     /**
      * 季度，填写1到4的数字
      */
-    @ExcelCellBindAnnotation(title = "时间", exportFormat = "第$1季", exportPriority = 2)
+    @ExcelCellBindAnnotation(title = "时间", exportFormat = "第$1季", exportPriority = 1)
     private Integer quarter;
 
     /**

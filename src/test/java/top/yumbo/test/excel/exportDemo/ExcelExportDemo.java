@@ -10,6 +10,7 @@ import top.yumbo.test.excel.importDemo.ExcelImportTemplateForQuarter;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.util.List;
 
 /**
@@ -30,9 +31,9 @@ public class ExcelExportDemo {
 
             Workbook workbook = new XSSFWorkbook(fis);
             ExcelImportExportUtils.filledListToSheet(quarterList, workbook.getSheetAt(0));
-//            System.out.println(excelExportPartDescData);
-            //workbook.close();
-
+            workbook.createSheet("111");
+            workbook.write(new FileOutputStream("E:/3.xlsx"));
+            workbook.close();
         } catch (Exception e) {
             e.printStackTrace();
         }

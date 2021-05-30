@@ -82,7 +82,7 @@ public class ExcelImportExportUtils {
     public static <T> void filledListToSheet(List<T> list, Sheet sheet) throws Exception {
         if (list != null && sheet != null && list.size() > 0) {
             final JSONArray jsonArray = listToJSONArray(list);
-            final JSONObject excelExportPartDescData = getExcelExportPartDescData(list.get(0).getClass(), sheet);
+            final JSONObject excelExportPartDescData = getExportExcelPartDescData(list.get(0).getClass(), sheet);
             System.out.println(excelExportPartDescData);
             filledListToSheet(jsonArray, excelExportPartDescData, sheet);
         } else if (list == null) {
@@ -111,12 +111,19 @@ public class ExcelImportExportUtils {
         final Integer height = tableHeaderDesc.getInteger(ExcelTable.TABLE_HEADER_HEIGHT.name());// 得到表头占多少行
         // 一行一行填充
         for (int i = 0; i < jsonArray.size(); i++) {
-            final Row row = sheet.createRow(height + 1 + i);// 创建一行数据
+            int rowNum = height + i;
+            final Row[] row = {sheet.getRow(rowNum)};// 创建一行数据
             final JSONObject json = (JSONObject) jsonArray.get(i);// 得到这条数据
             AtomicReference<Exception> exception = new AtomicReference<>();
             tableBodyDesc.forEach((index, v) -> {
+                if (row[0] == null) {
+                    row[0] = sheet.createRow(rowNum);
+                }
                 // 给这个 index单元格 填入 value
-                Cell cell = row.createCell(Integer.parseInt(index));// 得到单元格
+                Cell cell = row[0].getCell(Integer.parseInt(index));// 得到单元格
+                if (cell == null) {
+                    cell = row[0].createCell(Integer.parseInt(index));
+                }
 
                 if (v instanceof JSONArray) {
                     // 多个字段合并成一个单元格内容
@@ -156,14 +163,20 @@ public class ExcelImportExportUtils {
                                 // 有格式化模板
                                 final String[] formatStr = format.split(split);// 拆分后的格式化内容
                                 for (int j = 0; j < width; j++) {
-                                    cell = row.createCell(Integer.parseInt(index) + j);// 得到单元格
+                                    cell = row[0].getCell(Integer.parseInt(index) + j);
+                                    if (cell == null) {
+                                        cell = row[0].createCell(Integer.parseInt(index) + j);// 得到单元格
+                                    }
                                     String formattedStr = formatStr[j].replace("$" + j, splitArray[j]);// 替换字符串
                                     cell.setCellValue(formattedStr);// 将格式化后的字符串填入
                                 }
                             } else {
                                 // 没有格式化模板直接填入内容
                                 for (int j = 0; j < width; j++) {
-                                    cell = row.createCell(Integer.parseInt(index) + j);// 得到单元格
+                                    cell = row[0].getCell(Integer.parseInt(index) + j);
+                                    if (cell == null) {
+                                        cell = row[0].createCell(Integer.parseInt(index) + j);// 得到单元格
+                                    }
                                     String formattedStr = format.replace("$" + j, splitArray[j]);// 替换字符串
                                     cell.setCellValue(formattedStr);// 将格式化后的字符串填入
                                 }
@@ -181,7 +194,7 @@ public class ExcelImportExportUtils {
                             cell.setCellValue(replacedStr);// 设置单元格内容
                         } else {
                             // 内容不需要格式化则直接填入
-                            cell.setCellValue(String.valueOf(json.get(ExcelCell.FIELD_NAME.name())));
+                            cell.setCellValue(fieldValue);
                         }
                     }
                 }
@@ -344,7 +357,7 @@ public class ExcelImportExportUtils {
      * 返回Excel主体数据Body的描述信息
      */
     public static JSONObject getExcelBodyDescData(Class<T> clazz) {
-        JSONObject partDescData = getExcelPartDescData(clazz);
+        JSONObject partDescData = getImportExcelPartDescData(clazz);
         return getExcelBodyDescData(partDescData);
     }
 
@@ -359,7 +372,7 @@ public class ExcelImportExportUtils {
      * 返回Excel头部Header的描述信息
      */
     public static JSONObject getExcelHeaderDescData(Class<T> clazz) {
-        JSONObject partDescData = getExcelPartDescData(clazz);
+        JSONObject partDescData = getImportExcelPartDescData(clazz);
         return getExcelHeaderDescData(partDescData);
     }
 
@@ -414,7 +427,7 @@ public class ExcelImportExportUtils {
      */
     private static <T> JSONObject getFulledExcelDescData(Class<T> tClass, Sheet sheet) {
         // 获取表格部分描述信息（根据泛型得到的）
-        JSONObject partDescData = getExcelPartDescData(tClass);
+        JSONObject partDescData = getImportExcelPartDescData(tClass);
         // 根据相同标题填充index
         return filledTitleIndexBySheet(partDescData, sheet);
     }
@@ -427,7 +440,7 @@ public class ExcelImportExportUtils {
      * @param clazz 传入的泛型
      * @return 所有加了注解需要映射 标题和字段的Map集合
      */
-    private static JSONObject getExcelPartDescData(Class<?> clazz) {
+    private static JSONObject getImportExcelPartDescData(Class<?> clazz) {
         Field[] fields = clazz.getDeclaredFields();// 获取所有字段
         JSONObject excelDescData = new JSONObject();// excel的描述数据
         JSONObject tableBody = new JSONObject();// 表中主体数据信息
@@ -478,7 +491,7 @@ public class ExcelImportExportUtils {
      * @param sheet excel表格
      * @return 表格的信息
      */
-    public static JSONObject getExcelExportPartDescData(Class<?> clazz, Sheet sheet) {
+    public static JSONObject getExportExcelPartDescData(Class<?> clazz, Sheet sheet) {
         Field[] fields = clazz.getDeclaredFields();// 获取所有字段
         JSONObject tableHeader = new JSONObject();// 表中主体数据信息
         JSONObject tableBody = new JSONObject();// 表中主体数据信息
