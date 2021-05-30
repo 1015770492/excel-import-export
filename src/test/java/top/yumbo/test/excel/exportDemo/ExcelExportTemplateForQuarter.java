@@ -4,6 +4,7 @@ import lombok.Data;
 import top.yumbo.excel.annotation.ExcelCellBindAnnotation;
 import top.yumbo.excel.annotation.ExcelTableHeaderAnnotation;
 import top.yumbo.excel.enumeration.ExceptionMsg;
+import top.yumbo.excel.util.BigDecimalUtils;
 
 import java.math.BigDecimal;
 
@@ -42,7 +43,7 @@ public class ExcelExportTemplateForQuarter {
     /**
      * 合计违约规模
      */
-    @ExcelCellBindAnnotation(title = "合计违约规模", exception = ExceptionMsg.INCORRECT_FORMAT_EXCEPTION)
+    @ExcelCellBindAnnotation(title = "合计违约规模",size = BigDecimalUtils.ONE_HUNDRED_MILLION_STRING,exception = ExceptionMsg.INCORRECT_FORMAT_EXCEPTION)
     private BigDecimal breachTotalScale;
 
     /**

@@ -3,10 +3,7 @@ package top.yumbo.excel.util;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import org.apache.poi.ss.formula.functions.T;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.CellType;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.*;
 import org.springframework.util.StringUtils;
 import top.yumbo.excel.annotation.ExcelCellBindAnnotation;
 import top.yumbo.excel.annotation.ExcelTableHeaderAnnotation;
@@ -118,11 +115,21 @@ public class ExcelImportExportUtils {
             tableBodyDesc.forEach((index, v) -> {
                 if (row[0] == null) {
                     row[0] = sheet.createRow(rowNum);
+
+
                 }
                 // 给这个 index单元格 填入 value
                 Cell cell = row[0].getCell(Integer.parseInt(index));// 得到单元格
                 if (cell == null) {
                     cell = row[0].createCell(Integer.parseInt(index));
+                    Workbook wb = sheet.getWorkbook();
+                    Font font = sheet.getWorkbook().createFont();
+                    font.setFontName("微软雅黑");
+                    font.setFontHeightInPoints((short) 11);//设置字体大小
+                    CellStyle cellStyle = wb.createCellStyle();
+                    cellStyle.setFont(font);
+                    cellStyle.setAlignment(HorizontalAlignment.CENTER);
+                    cell.setCellStyle(cellStyle);
                 }
 
                 if (v instanceof JSONArray) {
@@ -134,7 +141,7 @@ public class ExcelImportExportUtils {
                         // 处理每一个字段
                         JSONObject fieldDescData = (JSONObject) obj;
                         // 得到转换后的内容
-                        final String resultValue = getResultValue(json, fieldDescData);
+                        final String resultValue = getFieldValue(json, fieldDescData);
                         linkedFormatString[atomicInteger.getAndIncrement()] = resultValue;// 存入该位置
                     });
                     final StringBuilder stringBuilder = new StringBuilder();
@@ -150,8 +157,11 @@ public class ExcelImportExportUtils {
                     final String format = jsonObject.getString(ExcelCell.FORMAT.name());
                     final Integer priority = jsonObject.getInteger(ExcelCell.PRIORITY.name());
                     final String fieldName = jsonObject.getString(ExcelCell.FIELD_NAME.name());
+                    final String fieldType = jsonObject.getString(ExcelCell.FIELD_TYPE.name());
+                    final String size = jsonObject.getString(ExcelCell.SIZE.name());
                     final String split = jsonObject.getString(ExcelCell.SPLIT.name());
-                    final String fieldValue = String.valueOf(json.get(fieldName));// 得到字段值
+
+                    String fieldValue = String.valueOf(json.get(fieldName));// 得到这个字段值
                     final Integer width = jsonObject.getInteger(ExcelCell.WIDTH.name());
 
                     if (width > 1) {
@@ -193,8 +203,9 @@ public class ExcelImportExportUtils {
                             String replacedStr = format.replace("$" + priority, fieldValue);// 替换字符串
                             cell.setCellValue(replacedStr);// 设置单元格内容
                         } else {
-                            // 内容不需要格式化则直接填入
-                            cell.setCellValue(fieldValue);
+                            // 内容不需要格式化则直接填入(转换一下单位，如果没有就原样返回)
+                            final String result = castForExport(fieldValue, fieldType, size);
+                            cell.setCellValue(result);
                         }
                     }
                 }
@@ -208,20 +219,53 @@ public class ExcelImportExportUtils {
     }
 
     /**
-     * 得到对象的值
+     * 得到对象的值(转换的只是格式化后的值)
      *
-     * @param jsonObject    实体数据转换的JSONObject
+     * @param entity        实体数据转换的JSONObject
      * @param fieldDescData 字段规则描述数据
      * @return 处理后的字符串
      */
-    private static String getResultValue(JSONObject jsonObject, JSONObject fieldDescData) {
+    private static String getFieldValue(JSONObject entity, JSONObject fieldDescData) {
         final String format = fieldDescData.getString(ExcelCell.FORMAT.name());
         final Integer priority = fieldDescData.getInteger(ExcelCell.PRIORITY.name());
         final String fieldName = fieldDescData.getString(ExcelCell.FIELD_NAME.name());
         // 从对象中得到这个字段值
-        final String fieldValue = String.valueOf(jsonObject.get(fieldName));// 得到这个字段值
+        String fieldValue = String.valueOf(entity.get(fieldName));// 得到这个字段值
+
         // 替换字符串
         return format.replace("$" + priority, fieldValue);
+    }
+
+
+    /**
+     * 得到类型处理后的值字符串
+     *
+     * @param inputValue 输入的值
+     * @param type       应该的类型
+     * @param size       规模
+     */
+    public static String castForExport(String inputValue, String type, String size) {
+        String result = "";
+        if (!StringUtils.hasText(inputValue)) {
+            return result;
+        }
+        final Class<?> fieldType = clazzMap.get(type);
+        if (fieldType == String.class || fieldType == Character.class) {
+            // 字符串或字符类型
+            return inputValue;
+        } else {
+            // 是数值类型的进行转换
+            BigDecimal bigDecimal = new BigDecimal(inputValue);
+            final BigDecimal resultBigDecimal = BigDecimalUtils.bigDecimalDivBigDecimalFormatTwo(bigDecimal, new BigDecimal(size));
+            if (fieldType == BigDecimal.class || fieldType == Double.class || fieldType == Float.class) {
+                // 小数类型
+                result = resultBigDecimal.toString();
+            } else if (fieldType == Integer.class || fieldType == Long.class || fieldType == Short.class) {
+                // 整数类型
+                result = String.valueOf(resultBigDecimal.longValue());
+            }
+        }
+        return result;
     }
 //    private static JSONObject getSheetTitleDesc(Sheet sheet,Class<T> tClass){
 //
@@ -521,6 +565,8 @@ public class ExcelImportExportUtils {
                         titleDesc.put(ExcelCell.FIELD_NAME.name(), field.getName());// 导出字符串拆分为多个单元格（州市+区县）
                         titleDesc.put(ExcelCell.FORMAT.name(), annotationTitle.exportFormat());// 这个字段输出的格式
                         titleDesc.put(ExcelCell.PRIORITY.name(), annotationTitle.exportPriority());// 这个字段输出的格式
+                        titleDesc.put(ExcelCell.SIZE.name(), annotationTitle.size());// 字段规模
+                        titleDesc.put(ExcelCell.FIELD_TYPE.name(), field.getType().getTypeName());// 字段类型
 
                         // 该字段是否有同title的注解
                         if (tableBody.containsKey(titleIndexString)) {
