@@ -2,9 +2,11 @@ package top.yumbo.test.excel.exportDemo;
 
 import com.alibaba.fastjson.JSONArray;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import top.yumbo.excel.entity.CellStyleEntity;
 import top.yumbo.excel.util.ExcelImportExportUtils;
 import top.yumbo.test.excel.importDemo.ExcelImportTemplateForQuarter;
 
@@ -12,6 +14,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * @author jinhua
@@ -19,18 +22,47 @@ import java.util.List;
  */
 public class ExcelExportDemo {
 
+    interface PredicateCellStyle<T> {
+        default boolean enable(T t, Predicate predicate) {
+            return predicate.test(t);
+        }
+    }
+
     public static void main(String[] args) {
         System.out.println("=====季度数据======");
         String fileName = "2.xlsx";
         List<ExcelImportTemplateForQuarter> list = importData(fileName, ExcelImportTemplateForQuarter.class);
         System.out.println(list);
         final List<ExcelExportTemplateForQuarter> quarterList = JSONArray.parseArray(JSONArray.toJSONString(list), ExcelExportTemplateForQuarter.class);
+
+
         final String concurrentPath = getConcurrentPath();
         String relativePath = "/src/test/java/top/yumbo/test/excel";
         try (FileInputStream fis = new FileInputStream(concurrentPath + relativePath + "/test2.xlsx");) {
 
             Workbook workbook = new XSSFWorkbook(fis);
-            ExcelImportExportUtils.filledListToSheet(quarterList, workbook.getSheetAt(0));
+//            ExcelImportExportUtils.filledListToSheet(quarterList, workbook.getSheetAt(0));
+//            ExcelImportExportUtils.filledListToSheetWithCellStyle(quarterList, workbook.getSheetAt(0));
+            final CellStyle cellStyle = CellStyleEntity.builder().fontName("微软雅黑").fontSize(12).bgColor(9).build().getCellStyle(workbook);
+            ExcelImportExportUtils.filledListToSheetWithCellStyleByPredicate(quarterList, cellStyle, (one) -> {
+                if (one.getBreachTotalScale().intValue() > 3) {
+                    return true;
+                }
+                return false;
+            }, workbook.getSheetAt(0));
+//            final List<CellStyle> cellStyleList = Arrays.asList(
+//                    CellStyleEntity.builder().fontName("微软雅黑").fontSize(12).bgColor(9).build().getCellStyle(workbook),
+//                    CellStyleEntity.builder().fontName("宋体").fontSize(12).bgColor(9).foregroundColor(13).build().getCellStyle(workbook),
+//                    CellStyleEntity.builder().fontName("微软雅黑").fontSize(12).bgColor(10).build().getCellStyle(workbook)
+//            );
+//            ExcelImportExportUtils.filledListToSheetWithCellStyleByFunction(quarterList, cellStyleList, (one) -> {
+//                if (one.getYear() % 2 == 0 || one.getQuarter() == 3) {
+//                    return 1;
+//                }else {
+//                    return 0;
+//                }
+//            }, workbook.getSheetAt(0));
+
             workbook.createSheet("证明是新的");
             workbook.write(new FileOutputStream("D:/导出的季度数据.xlsx"));
             workbook.close();

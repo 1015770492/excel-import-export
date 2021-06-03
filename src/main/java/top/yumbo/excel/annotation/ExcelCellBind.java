@@ -12,7 +12,7 @@ import java.lang.annotation.Target;
  */
 @Target({ElementType.FIELD})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface ExcelCellBindAnnotation {
+public @interface ExcelCellBind {
     /**
      * 绑定的标题名称，
      * 通过扫描单元格表头可以确定表头所在的索引列，然后在根据width就能确定单元格
@@ -72,5 +72,8 @@ public @interface ExcelCellBindAnnotation {
      * 单元格索引位置
      */
     int index() default -1;
+
+
+
 
 }

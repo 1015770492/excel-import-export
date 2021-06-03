@@ -14,7 +14,7 @@ import java.lang.annotation.Target;
 
 @Target({ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface ExcelTableHeaderAnnotation {
+public @interface ExcelTableHeader {
     /**
      * 表头的高度，默认表头高1行
      */
@@ -34,4 +34,9 @@ public @interface ExcelTableHeaderAnnotation {
      *      相对路径示例->例如：path://src/test/java/yumbo/test/excel/1.xlsx
      */
     String resource() default "";
+
+    /**
+     * 默认密码，可编辑/不可编辑单元格需要用到
+     */
+    String password() default "123456";
 }
