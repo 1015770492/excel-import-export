@@ -45,7 +45,7 @@ public class ExcelExportTemplateForQuarter {
      * 合计违约规模
      */
     @ExcelCellBind(title = "合计违约规模",size = BigDecimalUtils.ONE_HUNDRED_MILLION_STRING,exception = ExceptionMsg.INCORRECT_FORMAT_EXCEPTION)
-    @ExcelCellStyle(backgroundColor = 13)
+    @ExcelCellStyle(backgroundColor = 9)
     private BigDecimal breachTotalScale;
 
     /**

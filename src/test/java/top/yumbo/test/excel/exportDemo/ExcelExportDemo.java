@@ -44,8 +44,8 @@ public class ExcelExportDemo {
 //            ExcelImportExportUtils.filledListToSheet(quarterList, workbook.getSheetAt(0));
 //            ExcelImportExportUtils.filledListToSheetWithCellStyle(quarterList, workbook.getSheetAt(0));
             final CellStyle cellStyle = CellStyleEntity.builder().fontName("微软雅黑").fontSize(12).bgColor(9).build().getCellStyle(workbook);
-            ExcelImportExportUtils.filledListToSheetWithCellStyleByPredicate(quarterList, cellStyle, (one) -> {
-                if (one.getBreachTotalScale().intValue() > 3) {
+            ExcelImportExportUtils.filledListToSheetWithCellStyleByFieldPredicate(quarterList, cellStyle,ExcelExportTemplateForQuarter::getBreachTotalScale, (one) -> {
+                if (one.getQuarter() > 3) {
                     return true;
                 }
                 return false;
