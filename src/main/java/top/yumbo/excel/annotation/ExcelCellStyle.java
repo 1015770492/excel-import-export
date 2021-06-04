@@ -32,6 +32,11 @@ public @interface ExcelCellStyle {
     short fontSize() default 11;
 
     /**
+     * 字体加粗
+     */
+    boolean bold() default false;
+
+    /**
      * 默认居中，单元格水平对齐方式的枚举值
      */
     HorizontalAlignment textAlign() default HorizontalAlignment.CENTER;

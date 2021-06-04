@@ -9,6 +9,7 @@ import top.yumbo.excel.annotation.ExcelCellBind;
 import top.yumbo.excel.annotation.ExcelCellStyle;
 import top.yumbo.excel.annotation.ExcelTableHeader;
 import top.yumbo.excel.entity.CellStyleEntity;
+import top.yumbo.excel.entity.TitleCellStylePredicate;
 import top.yumbo.excel.interfaces.SerializableFunction;
 
 import java.lang.reflect.Field;
@@ -46,7 +47,7 @@ public class ExcelImportExportUtils {
      * 样式的属性名
      */
     public enum CellStyleEnum {
-        FONT_NAME, FONT_SIZE, BG_COLOR, TEXT_ALIGN, LOCKED, HIDDEN,
+        FONT_NAME, FONT_SIZE, BG_COLOR, TEXT_ALIGN, LOCKED, HIDDEN, BOLD,
         VERTICAL_ALIGN, WRAP_TEXT,
         FORE_COLOR, ROTATION, FILL_PATTERN, AUTO_SHRINK, TOP, BOTTOM, LEFT, RIGHT;
     }
@@ -225,23 +226,182 @@ public class ExcelImportExportUtils {
     }
 
     /**
-     * 生成自定义的表格
-     *
-     * @param list      数据集合
-     * @param cellStyle 自定义的样式
-     * @param predicate 断言器
-     * @param sheet     待填入的表
+     * 以行为单位设置样式
      */
-    public static <T, R> void filledListToSheetWithCellStyleByFieldPredicate(List<T> list, CellStyle cellStyle, SerializableFunction<T, R> function, Predicate<T> predicate, Sheet sheet) throws Exception {
+    public static <T, R> void filledListToSheetWithCellStyleByPredicate(List<T> list, CellStyle cellStyle, Predicate<T> predicate, Sheet sheet) throws Exception {
+        filledListToSheetWithCellStyleByFieldPredicate(list, cellStyle, null, predicate, sheet);
+    }
+
+
+    public static <T> void filledListToSheetWithCellStyleByBatchTitlePredicate(List<T> list, List<TitleCellStylePredicate<T>> predicateList, Sheet sheet) throws Exception {
         JSONObject fulledExcelDescriptionInfo = getExportDescriptionByClazzAndSheet(list.get(0).getClass(), sheet);// 包含了索引填充
         JSONObject tableHeaderDesc = getExcelHeaderDescInfo(fulledExcelDescriptionInfo);// 表头描述信息
         JSONObject tableBodyDesc = getExcelBodyDescInfo(fulledExcelDescriptionInfo);// 表身体描述信息
-
-        final Field field = ReflectionUtil.getField(function);
-        final ExcelCellBind annotation = field.getAnnotation(ExcelCellBind.class);
-
         final Integer height = tableHeaderDesc.getInteger(TableEnum.TABLE_HEADER_HEIGHT.name());// 得到表头占多少行
-        final int titleIndex = getTitleIndexFromSheet(annotation.title(), sheet, height);// 得到这个字段的表格索引，这个索引列需要进行断言
+        final HashMap<String, TitleCellStylePredicate<T>> integerListHashMap = new HashMap<>();
+        predicateList.forEach(e -> {
+            final int titleIndexFromSheet = getTitleIndexFromSheet(e.getTitle(), sheet, height);
+            integerListHashMap.put(String.valueOf(titleIndexFromSheet), e);
+        });
+        final JSONArray jsonArray = listToJSONArray(list);// list转jsonArray
+        // 一行一行填充
+        for (int i = 0; i < jsonArray.size(); i++) {
+            int rowNum = height + i;
+            final Row[] row = {sheet.getRow(rowNum)};// 获取一行一行数据
+            if (row[0] == null) {
+                row[0] = sheet.createRow(rowNum);
+            }
+            final JSONObject json = (JSONObject) jsonArray.get(i);// 得到这条数据
+            AtomicReference<Exception> exception = new AtomicReference<>();
+            final T t = list.get(i);// 得到这条数据
+
+            // 遍历每一个单元格
+            tableBodyDesc.forEach((index, v) -> {
+                TitleCellStylePredicate<T> cellStylePredicate = integerListHashMap.get(index);
+                // 得到单元格后面给这个 index单元格 填入 value
+                Cell cell = row[0].getCell(Integer.parseInt(index));// 得到单元格
+                if (cell == null) {
+                    cell = row[0].createCell(Integer.parseInt(index));
+                }
+                boolean test = false;
+                if (cellStylePredicate != null) {
+                    test = cellStylePredicate.getPredicate().test(t);// 是否启用样式
+                }
+
+
+                if (v instanceof JSONArray) {
+                    // 一个标题，多个字段。 多个字段内容合并成一个单元格内容
+                    JSONArray array = (JSONArray) v;
+                    String[] linkedFormatString = new String[array.size()];
+                    final AtomicInteger atomicInteger = new AtomicInteger(0);
+                    array.forEach(obj -> {
+                        // 处理每一个字段
+                        JSONObject fieldDescData = (JSONObject) obj;
+                        // 得到转换后的内容
+                        final String resultValue = getFieldValue(json, fieldDescData);
+                        linkedFormatString[atomicInteger.getAndIncrement()] = resultValue;// 存入该位置
+                    });
+                    final StringBuilder stringBuilder = new StringBuilder();
+                    for (String s : linkedFormatString) {
+                        stringBuilder.append(s);
+                    }
+                    String value = stringBuilder.toString();// 得到了合并后的内容
+                    if (test) {
+                        cell.setCellStyle(cellStylePredicate.getCellStyle());// 使用自定义样式代替
+                    } else {
+                        JSONObject cellStyleDesc = array.getJSONObject(0);
+                        // 使用注解上的默认样式，如果没有则给一个默认样式
+                        setCellStyle(cell, cellStyleDesc);
+                    }
+                    cell.setCellValue(value);
+
+                } else {
+                    // 一个标题一个字段，一个字段拆分多个单元格
+                    JSONObject jsonObject = (JSONObject) v;
+                    final String format = jsonObject.getString(ExcelCellEnum.FORMAT.name());
+                    final Integer priority = jsonObject.getInteger(ExcelCellEnum.PRIORITY.name());
+                    final String fieldName = jsonObject.getString(ExcelCellEnum.FIELD_NAME.name());
+                    final String fieldType = jsonObject.getString(ExcelCellEnum.FIELD_TYPE.name());
+                    final String size = jsonObject.getString(ExcelCellEnum.SIZE.name());
+                    final String split = jsonObject.getString(ExcelCellEnum.SPLIT.name());
+
+                    String fieldValue = String.valueOf(json.get(fieldName));// 得到这个字段值
+                    final Integer width = jsonObject.getInteger(ExcelCellEnum.WIDTH.name());
+
+                    if (width > 1) {
+                        // 一个字段需要拆分成多个单元格
+                        if (StringUtils.hasText(split)) {
+                            // 有拆分词
+                            final String[] splitArray = fieldValue.split(split);// 先拆分字段
+                            if (StringUtils.hasText(format)) {
+                                // 有格式化模板
+                                final String[] formatStr = format.split(split);// 拆分后的格式化内容
+                                for (int j = 0; j < width; j++) {
+                                    int idx = Integer.parseInt(index) + j;
+                                    cell = row[0].getCell(idx);
+                                    if (cell == null) {
+                                        cell = row[0].createCell(idx);// 得到单元格
+                                    }
+                                    test = false;
+
+                                    String formattedStr = formatStr[j].replace("$" + j, splitArray[j]);// 替换字符串
+                                    final TitleCellStylePredicate<T> cellStylePredicate2 = integerListHashMap.get("" + idx);
+                                    if (cellStylePredicate2 != null) {
+                                        final Predicate<T> predicate = cellStylePredicate2.getPredicate();
+                                        test = predicate.test(t);
+                                    }
+                                    if (test) {
+                                        cell.setCellStyle(cellStylePredicate2.getCellStyle());// 使用自定义样式代替
+                                    } else {
+                                        JSONObject cellStyleDesc = (JSONObject) v;
+                                        // 使用注解上的默认样式，如果没有则给一个默认样式
+                                        setCellStyle(cell, cellStyleDesc);
+                                    }
+                                    cell.setCellValue(formattedStr);// 将格式化后的字符串填入
+                                }
+                            } else {
+                                // 没有格式化模板直接填入内容
+                                for (int j = 0; j < width; j++) {
+                                    int idx = Integer.parseInt(index) + j;
+                                    cell = row[0].getCell(idx);
+                                    if (cell == null) {
+                                        cell = row[0].createCell(Integer.parseInt(index) + j);// 得到单元格
+                                    }
+
+                                    if (test) {
+                                        cell.setCellStyle(cellStylePredicate.getCellStyle());// 使用自定义样式代替
+                                    } else {
+                                        JSONObject cellStyleDesc = (JSONObject) v;
+                                        // 使用注解上的默认样式，如果没有则给一个默认样式
+                                        setCellStyle(cell, cellStyleDesc);
+                                    }
+                                    String formattedStr = format.replace("$" + j, splitArray[j]);// 替换字符串
+                                    cell.setCellValue(formattedStr);// 将格式化后的字符串填入
+                                }
+                            }
+
+                        } else {
+                            // 没有拆分词，本身需要拆分，抛异常
+                            exception.set(new Exception(fieldName + "字段的注解上 缺少exportSplit拆分词"));
+                        }
+                    } else {
+                        if (test) {
+                            cell.setCellStyle(cellStylePredicate.getCellStyle());// 使用自定义样式代替
+                        } else {
+                            JSONObject cellStyleDesc = (JSONObject) v;
+                            // 使用注解上的默认样式，如果没有则给一个默认样式
+                            setCellStyle(cell, cellStyleDesc);
+                        }
+                        // 一个字段不需要拆成多个单元格
+                        if (StringUtils.hasText(format)) {
+                            // 内容存在格式化先进行格式化，然后填入值
+                            String replacedStr = format.replace("$" + priority, fieldValue);// 替换字符串
+                            cell.setCellValue(replacedStr);// 设置单元格内容
+                        } else {
+                            // 内容不需要格式化则直接填入(转换一下单位，如果没有就原样返回)
+                            final String result = castForExport(fieldValue, fieldType, size);
+                            cell.setCellValue(result);
+                        }
+                    }
+                }
+            });
+
+            if (exception.get() != null) {
+                throw exception.get();
+            }
+        }
+    }
+
+    /**
+     * 高亮显示某一个标题列并且进行断言
+     */
+    public static <T> void filledListToSheetWithCellStyleByTitlePredicate(List<T> list, CellStyle cellStyle, String title, Predicate<T> predicate, Sheet sheet) throws Exception {
+        JSONObject fulledExcelDescriptionInfo = getExportDescriptionByClazzAndSheet(list.get(0).getClass(), sheet);// 包含了索引填充
+        JSONObject tableHeaderDesc = getExcelHeaderDescInfo(fulledExcelDescriptionInfo);// 表头描述信息
+        JSONObject tableBodyDesc = getExcelBodyDescInfo(fulledExcelDescriptionInfo);// 表身体描述信息
+        final Integer height = tableHeaderDesc.getInteger(TableEnum.TABLE_HEADER_HEIGHT.name());// 得到表头占多少行
+        int titleCol = getTitleIndexFromSheet(title, sheet, height);
+        final int titleIndex = titleCol;
         final JSONArray jsonArray = listToJSONArray(list);// list转jsonArray
         // 一行一行填充
         for (int i = 0; i < jsonArray.size(); i++) {
@@ -255,7 +415,7 @@ public class ExcelImportExportUtils {
             int finalI = i;
 
             tableBodyDesc.forEach((index, v) -> {
-
+                boolean flag = Integer.parseInt(index) == titleIndex;
                 // 得到单元格后面给这个 index单元格 填入 value
                 Cell cell = row[0].getCell(Integer.parseInt(index));// 得到单元格
                 if (cell == null) {
@@ -280,7 +440,7 @@ public class ExcelImportExportUtils {
                         stringBuilder.append(s);
                     }
                     String value = stringBuilder.toString();// 得到了合并后的内容
-                    if (test && Integer.parseInt(index) == titleIndex) {
+                    if (test && flag) {
                         cell.setCellStyle(cellStyle);// 使用自定义样式代替
                     } else {
                         JSONObject cellStyleDesc = array.getJSONObject(0);
@@ -311,11 +471,13 @@ public class ExcelImportExportUtils {
                                 // 有格式化模板
                                 final String[] formatStr = format.split(split);// 拆分后的格式化内容
                                 for (int j = 0; j < width; j++) {
-                                    cell = row[0].getCell(Integer.parseInt(index) + j);
+                                    int idx = Integer.parseInt(index) + j;
+                                    cell = row[0].getCell(idx);
                                     if (cell == null) {
                                         cell = row[0].createCell(Integer.parseInt(index) + j);// 得到单元格
                                     }
-                                    if (test && Integer.parseInt(index) == titleIndex) {
+                                    flag = idx == titleIndex;
+                                    if (test && flag) {
                                         cell.setCellStyle(cellStyle);// 使用自定义样式代替
                                     } else {
                                         JSONObject cellStyleDesc = (JSONObject) v;
@@ -328,11 +490,13 @@ public class ExcelImportExportUtils {
                             } else {
                                 // 没有格式化模板直接填入内容
                                 for (int j = 0; j < width; j++) {
-                                    cell = row[0].getCell(Integer.parseInt(index) + j);
+                                    int idx = Integer.parseInt(index) + j;
+                                    cell = row[0].getCell(idx);
                                     if (cell == null) {
                                         cell = row[0].createCell(Integer.parseInt(index) + j);// 得到单元格
                                     }
-                                    if (test && Integer.parseInt(index) == titleIndex) {
+                                    flag = idx == titleIndex;
+                                    if (test && flag) {
                                         cell.setCellStyle(cellStyle);// 使用自定义样式代替
                                     } else {
                                         JSONObject cellStyleDesc = (JSONObject) v;
@@ -349,7 +513,7 @@ public class ExcelImportExportUtils {
                             exception.set(new Exception(fieldName + "字段的注解上 缺少exportSplit拆分词"));
                         }
                     } else {
-                        if (test && Integer.parseInt(index) == titleIndex) {
+                        if (test && flag) {
                             cell.setCellStyle(cellStyle);// 使用自定义样式代替
                         } else {
                             JSONObject cellStyleDesc = (JSONObject) v;
@@ -377,6 +541,21 @@ public class ExcelImportExportUtils {
     }
 
     /**
+     * 以标题为单位设置样式
+     *
+     * @param list      数据集合
+     * @param cellStyle 自定义的样式
+     * @param predicate 断言器
+     * @param sheet     待填入的表
+     */
+    public static <T, R> void filledListToSheetWithCellStyleByFieldPredicate(List<T> list, CellStyle cellStyle, SerializableFunction<T, R> function, Predicate<T> predicate, Sheet sheet) throws Exception {
+        final Field field = ReflectionUtil.getField(function);
+        final ExcelCellBind annotation = field.getAnnotation(ExcelCellBind.class);
+        final String title = annotation.title();
+        filledListToSheetWithCellStyleByTitlePredicate(list, cellStyle, title, predicate, sheet);
+    }
+
+    /**
      * 设置单元格样式
      */
     private static void setCellStyle(Cell cell, JSONObject cellStyle) {
@@ -388,6 +567,7 @@ public class ExcelImportExportUtils {
         final boolean locked = cellStyle.getBooleanValue(CellStyleEnum.LOCKED.name());
         final boolean wrapText = cellStyle.getBoolean(CellStyleEnum.WRAP_TEXT.name());
         final boolean hidden = cellStyle.getBoolean(CellStyleEnum.HIDDEN.name());
+        final boolean bold = cellStyle.getBoolean(CellStyleEnum.BOLD.name());
         final boolean shrink = cellStyle.getBoolean(CellStyleEnum.AUTO_SHRINK.name());
 
         final HorizontalAlignment textAlign = cellStyle.getObject(CellStyleEnum.TEXT_ALIGN.name(), HorizontalAlignment.class);
@@ -397,11 +577,11 @@ public class ExcelImportExportUtils {
         final BorderStyle bottom = cellStyle.getObject(CellStyleEnum.BOTTOM.name(), BorderStyle.class);
         final BorderStyle left = cellStyle.getObject(CellStyleEnum.LEFT.name(), BorderStyle.class);
         final BorderStyle right = cellStyle.getObject(CellStyleEnum.RIGHT.name(), BorderStyle.class);
-        setCellStyle(cell, fontName, fontSize, locked, hidden, textAlign, bgColor, foreColor, rotation, verticalAlignment, fillPatternType, top, bottom, left, right, wrapText, shrink);
+        setCellStyle(cell, fontName, fontSize, bold, locked, hidden, textAlign, bgColor, foreColor, rotation, verticalAlignment, fillPatternType, top, bottom, left, right, wrapText, shrink);
     }
 
     private static void setCellStyle(Cell cell,
-                                     String fontName, Short fontSize, Boolean locked, Boolean hidden,
+                                     String fontName, Short fontSize, Boolean bold, Boolean locked, Boolean hidden,
                                      HorizontalAlignment textAlign,
                                      Short bgColor, Short foreignColor,
                                      Short rotation, VerticalAlignment verticalAlignment, FillPatternType fillPatternType,
@@ -409,7 +589,7 @@ public class ExcelImportExportUtils {
                                      Boolean autoShrink
     ) {
 
-        CellStyle cellStyle = getCellStyle(cell.getSheet().getWorkbook(), fontName, (int) fontSize, locked, hidden, textAlign, (int) bgColor, (int) foreignColor, (int) rotation, verticalAlignment, fillPatternType, top, bottom, left, right, wrapText, autoShrink);
+        CellStyle cellStyle = getCellStyle(cell.getSheet().getWorkbook(), fontName, (int) fontSize, bold, locked, hidden, textAlign, (int) bgColor, (int) foreignColor, (int) rotation, verticalAlignment, fillPatternType, top, bottom, left, right, wrapText, autoShrink);
         cell.setCellStyle(cellStyle);
     }
 
@@ -433,13 +613,13 @@ public class ExcelImportExportUtils {
      * @param wrapText          是否自动换行
      * @param autoShrink        是否自动调整大小
      */
-    public static CellStyle getCellStyle(Workbook workbook, String fontName, Integer fontSize, Boolean locked, Boolean hidden, HorizontalAlignment textAlign,
+    public static CellStyle getCellStyle(Workbook workbook, String fontName, Integer fontSize, Boolean bold, Boolean locked, Boolean hidden, HorizontalAlignment textAlign,
                                          Integer bgColor, Integer foreignColor,
                                          Integer rotation, VerticalAlignment verticalAlignment, FillPatternType fillPatternType,
                                          BorderStyle top, BorderStyle bottom, BorderStyle left, BorderStyle right, Boolean wrapText,
                                          Boolean autoShrink
     ) {
-        return CellStyleEntity.builder().fontName(fontName).fontSize(fontSize).locked(locked)
+        return CellStyleEntity.builder().fontName(fontName).fontSize(fontSize).bold(bold).locked(locked)
                 .hidden(hidden).textAlign(textAlign).bgColor(bgColor).foregroundColor(foreignColor)
                 .rotation(rotation).verticalAlignment(verticalAlignment)
                 .fillPatternType(fillPatternType)
@@ -897,7 +1077,7 @@ public class ExcelImportExportUtils {
                         titleDesc.put(ExcelCellEnum.FIELD_TYPE.name(), field.getType().getTypeName());// 字段类型
                         String fontName = "微软雅黑";
                         short fontSize = 11, bgColor = 9, rotation = 0, foregroundColor = 9;
-                        boolean locked = false, hidden = false, wrapText = false, shrink = false;
+                        boolean locked = false, bold = false, hidden = false, wrapText = false, shrink = false;
                         HorizontalAlignment textAlign = HorizontalAlignment.CENTER;
                         VerticalAlignment verticalAlignment = VerticalAlignment.CENTER;
                         FillPatternType fillPatternType = FillPatternType.NO_FILL;
@@ -907,6 +1087,7 @@ public class ExcelImportExportUtils {
                             fontSize = annotationStyle.fontSize();
                             textAlign = annotationStyle.textAlign();
                             bgColor = annotationStyle.backgroundColor();
+                            bold = annotationStyle.bold();
                             locked = annotationStyle.locked();
                             hidden = annotationStyle.hidden();
                             wrapText = annotationStyle.wrapText();
@@ -924,6 +1105,7 @@ public class ExcelImportExportUtils {
                         titleDesc.put(CellStyleEnum.FONT_SIZE.name(), fontSize);// 字体大小
                         titleDesc.put(CellStyleEnum.TEXT_ALIGN.name(), textAlign);// 文本位置，居中什么的
                         titleDesc.put(CellStyleEnum.BG_COLOR.name(), bgColor);// 背景颜色
+                        titleDesc.put(CellStyleEnum.BOLD.name(), bold);// 字体加粗
                         titleDesc.put(CellStyleEnum.LOCKED.name(), locked);// 是否可编辑
                         titleDesc.put(CellStyleEnum.HIDDEN.name(), hidden);// 是否启用样式
                         titleDesc.put(CellStyleEnum.WRAP_TEXT.name(), wrapText);// 多行显示
@@ -959,7 +1141,6 @@ public class ExcelImportExportUtils {
         }
         excelDescriptionInfo.put(TableEnum.TABLE_HEADER.name(), tableHeader);// 将表头记录信息注入
         excelDescriptionInfo.put(TableEnum.TABLE_BODY.name(), tableBody);// 将表的body记录信息注入
-        System.out.println(excelDescriptionInfo);
         return excelDescriptionInfo;// 返回记录的所有信息
     }
 

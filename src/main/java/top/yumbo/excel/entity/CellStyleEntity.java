@@ -15,6 +15,7 @@ public class CellStyleEntity {
     private String fontName;
     private Integer fontSize;
     private Integer fontColor;
+    private Boolean bold;
     private Boolean locked;
     private Boolean hidden;
     private HorizontalAlignment textAlign;
@@ -41,8 +42,9 @@ public class CellStyleEntity {
         if (fontSize == null) fontSize = 11;
         if (fontColor == null) fontColor = 8;
         if (bgColor == null) bgColor = 9;
+        if (bold == null) bold = false;
         if (rotation == null) rotation = 0;
-        if (foregroundColor == null) foregroundColor = 15;
+        if (foregroundColor == null) foregroundColor = 9;
         if (locked == null) locked = false;
         if (hidden == null) hidden = false;
         if (wrapText == null) wrapText = false;
@@ -58,6 +60,7 @@ public class CellStyleEntity {
         font.setFontName(fontName);// 字体
         font.setFontHeightInPoints(fontSize.shortValue());//设置字体大小
         font.setColor(fontColor.shortValue());
+        font.setBold(bold);
         cellStyle.setFont(font);
         cellStyle.setLocked(locked);// 设置是否上锁，默认否
         cellStyle.setAlignment(textAlign);// 默认居中
