@@ -14,15 +14,29 @@ import org.springframework.util.StringUtils;
 public class CellStyleEntity {
     private String fontName;
     private Integer fontSize;
+    /**
+     * 完整的颜色定义见：{@link org.apache.poi.ss.usermodel.IndexedColors}
+     * 红10，白9，黑8，粉14，绿17，蓝12，
+     * 灰22，金51，
+     */
     private Integer fontColor;
     private Boolean bold;
     private Boolean locked;
     private Boolean hidden;
     private HorizontalAlignment textAlign;
     /**
-     * 默认白色是9  {@link org.apache.poi.ss.usermodel.IndexedColors}
+     * 设置背景色
+     * 完整的颜色定义见：{@link org.apache.poi.ss.usermodel.IndexedColors}
+     * 默认白色，红10，白9，黑8，粉14，绿17，蓝12，
+     * 灰22，金51，
      */
     private Integer bgColor;
+    /**
+     * 设置前景色（默认白色9）
+     * 完整的颜色定义见：{@link org.apache.poi.ss.usermodel.IndexedColors}
+     * 红10，白9，黑8，粉14，绿17，蓝12，
+     * 灰22，金51，
+     */
     private Integer foregroundColor;
     private Integer rotation;
     private VerticalAlignment verticalAlignment;
