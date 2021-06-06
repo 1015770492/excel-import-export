@@ -34,7 +34,7 @@
 
 通过注解和工具类将，excel的数据并转换为List记录（后续数据库操作可以直接用MybatisPlus的批量插入即可）
 
-导入示例在 top.yumbo.test.excel.importDemo.ExcelImportDemo 类的main方法
+导入示例在 top.yumbo.test.excel.importDemo.ImportExcelDemo 类的main方法
 1.xlsx是测试用的表格
 以下面的这张表为例：
 

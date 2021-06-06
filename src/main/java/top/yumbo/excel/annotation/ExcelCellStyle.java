@@ -16,6 +16,7 @@ public @interface ExcelCellStyle {
      */
     boolean hidden() default false;
 
+
     /**
      * 是否锁定单元格（可编辑/不可编辑）,默认不上锁（可编辑）
      */
@@ -80,8 +81,11 @@ public @interface ExcelCellStyle {
      * 上、下、左、右 边框样式
      */
     BorderStyle top() default BorderStyle.NONE;
+
     BorderStyle bottom() default BorderStyle.NONE;
+
     BorderStyle left() default BorderStyle.NONE;
+
     BorderStyle right() default BorderStyle.NONE;
 
 }

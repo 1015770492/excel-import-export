@@ -4,7 +4,7 @@ import lombok.Data;
 import top.yumbo.excel.annotation.ExcelCellBind;
 import top.yumbo.excel.annotation.ExcelCellStyle;
 import top.yumbo.excel.annotation.ExcelTableHeader;
-import top.yumbo.excel.enumeration.ExceptionMsg;
+import top.yumbo.excel.enums.ExceptionMsg;
 import top.yumbo.excel.util.BigDecimalUtils;
 
 import java.math.BigDecimal;
@@ -14,8 +14,8 @@ import java.math.BigDecimal;
  * @date 2021/5/28 14:28
  */
 @Data
-@ExcelTableHeader(height = 4, tableName = "区域季度数据")// 表头占4行
-public class ExcelExportTemplateForQuarter {
+@ExcelTableHeader(height = 4, tableName = "区域季度数据", resource = "path:///src/test/java/top/yumbo/test/excel/2.xlsx")// 表头占4行，使用了相对路径
+public class ExportForQuarter {
 
     /**
      * 年份
@@ -32,7 +32,7 @@ public class ExcelExportTemplateForQuarter {
     /**
      * 地区代码，存储最末一级的地区代码就可以
      */
-    @ExcelCellBind(title = "地区", width = 2,exportSplit = ",", exportFormat = "$0,$1")
+    @ExcelCellBind(title = "地区", width = 2, exportSplit = ",", exportFormat = "$0,$1")
     private String regionCode;
 
     /**
@@ -44,7 +44,7 @@ public class ExcelExportTemplateForQuarter {
     /**
      * 合计违约规模
      */
-    @ExcelCellBind(title = "合计违约规模",size = BigDecimalUtils.ONE_HUNDRED_MILLION_STRING,exception = ExceptionMsg.INCORRECT_FORMAT_EXCEPTION)
+    @ExcelCellBind(title = "合计违约规模", size = BigDecimalUtils.ONE_HUNDRED_MILLION_STRING, exception = ExceptionMsg.INCORRECT_FORMAT_EXCEPTION)
     @ExcelCellStyle(backgroundColor = 9)
     private BigDecimal breachTotalScale;
 

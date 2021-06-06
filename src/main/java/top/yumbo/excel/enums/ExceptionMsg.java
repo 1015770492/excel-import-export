@@ -1,4 +1,4 @@
-package top.yumbo.excel.enumeration;
+package top.yumbo.excel.enums;
 
 /**
  * @author jinhua

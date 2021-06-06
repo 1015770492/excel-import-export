@@ -2,9 +2,17 @@ package top.yumbo.excel.util;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.formula.functions.T;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
+import org.springframework.web.client.RestTemplate;
 import top.yumbo.excel.annotation.ExcelCellBind;
 import top.yumbo.excel.annotation.ExcelCellStyle;
 import top.yumbo.excel.annotation.ExcelTableHeader;
@@ -12,8 +20,13 @@ import top.yumbo.excel.entity.CellStyleEntity;
 import top.yumbo.excel.entity.TitleCellStylePredicate;
 import top.yumbo.excel.interfaces.SerializableFunction;
 
+import java.io.*;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -33,7 +46,7 @@ public class ExcelImportExportUtils {
      * 表头信息
      */
     public enum TableEnum {
-        TABLE_NAME, TABLE_HEADER, TABLE_HEADER_HEIGHT, RESOURCE, TABLE_BODY, PASSWORD;
+        WORK_BOOK, SHEET, TABLE_NAME, TABLE_HEADER, TABLE_HEADER_HEIGHT, RESOURCE, TABLE_BODY, PASSWORD;
     }
 
     /**
@@ -65,14 +78,68 @@ public class ExcelImportExportUtils {
 //    }
 
     /**
+     * 导入Excel数据
+     *
+     * @param workbook excel工作簿
+     * @param tClass   泛型
+     */
+    public static <T> List<T> importExcel(Workbook workbook, Class<T> tClass) throws Exception {
+        return parseSheetToList(workbook.getSheetAt(0), tClass);
+    }
+
+    /**
+     * 导入excel
+     *
+     * @param inputStream 输入流
+     * @param type        类型：xls、xlsx
+     * @param tClass      模板数据
+     * @return List类型的实体
+     */
+    public static <T> List<T> importExcel(InputStream inputStream, Class<T> tClass, String type) throws Exception {
+        Workbook workbook = null;
+        if ("xls".equals(type)) {
+            workbook = new HSSFWorkbook(inputStream);
+        } else if ("xlsx".equals(type)) {
+            workbook = new XSSFWorkbook(inputStream);
+        }
+        if (workbook != null) {
+            return ExcelImportExportUtils.importExcel(workbook, tClass);
+        }
+        return null;
+    }
+
+    /**
+     * 导出Excel  （传入数据和输出流）
+     *
+     * @param list         待导入的数据集合
+     * @param outputStream 导出的文件输出流
+     */
+    public static <T> void exportExcel(List<T> list, OutputStream outputStream) throws Exception {
+        if (list != null) {
+            final JSONArray jsonArray = listToJSONArray(list);
+            final JSONObject descriptionByClazzAndSheet = getExportDescriptionByClazz(list.get(0).getClass());
+            final Sheet sheet = descriptionByClazzAndSheet.getObject(TableEnum.SHEET.name(), Sheet.class);
+            final Workbook workbook = descriptionByClazzAndSheet.getObject(TableEnum.WORK_BOOK.name(), Workbook.class);
+            filledJSONArrayToSheet(jsonArray, descriptionByClazzAndSheet, sheet);
+            workbook.write(outputStream);
+            workbook.close();
+        } else if (list == null) {
+            throw new Exception("list不能为空");
+        } else {
+            throw new Exception("sheet不能为空");
+        }
+    }
+
+
+    /**
      * 将sheet解析成List类型的数据（注意这里只是将单元格内容转换为了实体，具体字段可能还不是正确的例如 区域码应该是是具体的编码而不是XX市XX区）
      *
      * @param tClass 传入的泛型
      * @param sheet  表单数据（带表头的）
      * @return 只是将单元格内容转化为List
      */
-    public static <T> List<T> parseSheetToList(Class<T> tClass, Sheet sheet) throws Exception {
-        JSONArray jsonArray = parseSheetToJSONArray(tClass, sheet);
+    private static <T> List<T> parseSheetToList(Sheet sheet, Class<T> tClass) throws Exception {
+        JSONArray jsonArray = parseSheetToJSONArray(sheet, tClass);
         return JSONArray.parseArray(jsonArray.toJSONString(), tClass);
     }
 
@@ -82,11 +149,12 @@ public class ExcelImportExportUtils {
      * @param tClass 注解模板类
      * @param sheet  传入的excel数据
      */
-    public static <T> JSONArray parseSheetToJSONArray(Class<T> tClass, Sheet sheet) throws Exception {
-        JSONObject fulledExcelDescData = getFulledExcelDescriptionInfo(tClass, sheet);
+    private static <T> JSONArray parseSheetToJSONArray(Sheet sheet, Class<T> tClass) throws Exception {
+        JSONObject fulledExcelDescData = getFulledExcelDescriptionInfo(sheet, tClass);
         // 根据所有已知信息将excel转换为JsonArray数据
         return sheetToJSONArray(fulledExcelDescData, sheet);
     }
+
 
     /**
      * 填充List数据数据
@@ -228,7 +296,7 @@ public class ExcelImportExportUtils {
     /**
      * 以行为单位设置样式
      */
-    public static <T, R> void filledListToSheetWithCellStyleByPredicate(List<T> list, CellStyle cellStyle, Predicate<T> predicate, Sheet sheet) throws Exception {
+    public static <T> void filledListToSheetWithCellStyleByPredicate(List<T> list, CellStyle cellStyle, Predicate<T> predicate, Sheet sheet) throws Exception {
         filledListToSheetWithCellStyleByFieldPredicate(list, cellStyle, null, predicate, sheet);
     }
 
@@ -613,11 +681,11 @@ public class ExcelImportExportUtils {
      * @param wrapText          是否自动换行
      * @param autoShrink        是否自动调整大小
      */
-    public static CellStyle getCellStyle(Workbook workbook, String fontName, Integer fontSize, Boolean bold, Boolean locked, Boolean hidden, HorizontalAlignment textAlign,
-                                         Integer bgColor, Integer foreignColor,
-                                         Integer rotation, VerticalAlignment verticalAlignment, FillPatternType fillPatternType,
-                                         BorderStyle top, BorderStyle bottom, BorderStyle left, BorderStyle right, Boolean wrapText,
-                                         Boolean autoShrink
+    private static CellStyle getCellStyle(Workbook workbook, String fontName, Integer fontSize, Boolean bold, Boolean locked, Boolean hidden, HorizontalAlignment textAlign,
+                                          Integer bgColor, Integer foreignColor,
+                                          Integer rotation, VerticalAlignment verticalAlignment, FillPatternType fillPatternType,
+                                          BorderStyle top, BorderStyle bottom, BorderStyle left, BorderStyle right, Boolean wrapText,
+                                          Boolean autoShrink
     ) {
         return CellStyleEntity.builder().fontName(fontName).fontSize(fontSize).bold(bold).locked(locked)
                 .hidden(hidden).textAlign(textAlign).bgColor(bgColor).foregroundColor(foreignColor)
@@ -651,12 +719,18 @@ public class ExcelImportExportUtils {
             final Row[] row = {sheet.getRow(rowNum)};// 创建一行数据
             final JSONObject json = (JSONObject) jsonArray.get(i);// 得到这条数据
             AtomicReference<Exception> exception = new AtomicReference<>();
+
             tableBodyDesc.forEach((index, v) -> {
                 if (row[0] == null) {
                     row[0] = sheet.createRow(rowNum);
                 }
+                final int col = Integer.parseInt(index);
+                if (col < 0) {
+                    return;
+                }
+
                 // 给这个 index单元格 填入 value
-                Cell cell = row[0].getCell(Integer.parseInt(index));// 得到单元格
+                Cell cell = row[0].getCell(col);// 得到单元格
                 if (cell == null) {
                     cell = row[0].createCell(Integer.parseInt(index));
                     Workbook wb = sheet.getWorkbook();
@@ -748,6 +822,8 @@ public class ExcelImportExportUtils {
                         }
                     }
                 }
+
+
             });
 
             if (exception.get() != null) {
@@ -792,6 +868,10 @@ public class ExcelImportExportUtils {
         if (fieldType == String.class || fieldType == Character.class) {
             // 字符串或字符类型
             return inputValue;
+        } else if (fieldType == Date.class || fieldType == LocalDate.class
+                || fieldType == LocalDateTime.class || fieldType == LocalTime.class) {
+            // 时间类型的
+
         } else {
             // 是数值类型的进行转换
             BigDecimal bigDecimal = new BigDecimal(inputValue);
@@ -808,6 +888,9 @@ public class ExcelImportExportUtils {
     }
 
 
+    /**
+     * 转换为excel数据转换为 JSONArray
+     */
     private static JSONArray sheetToJSONArray(JSONObject allExcelDescData, Sheet sheet) throws Exception {
         JSONArray result = new JSONArray();
 
@@ -866,7 +949,7 @@ public class ExcelImportExportUtils {
                             value = patternConvert(pattern, value);
                             castValue = cast(value, fieldType, message, size);
                         } catch (Exception e) {
-                            throw new Exception(message);
+                            throw new Exception(message + e.getMessage());
                         }
                     }
 
@@ -906,8 +989,8 @@ public class ExcelImportExportUtils {
     /**
      * 返回Excel主体数据Body的描述信息
      */
-    public static JSONObject getExcelBodyDescData(Class<T> clazz) {
-        JSONObject partDescData = getDescriptionByClazz(clazz);
+    private static JSONObject getExcelBodyDescData(Class<T> clazz) {
+        JSONObject partDescData = getImportDescriptionByClazz(clazz);
         return getExcelBodyDescInfo(partDescData);
     }
 
@@ -921,8 +1004,8 @@ public class ExcelImportExportUtils {
     /**
      * 返回Excel头部Header的描述信息
      */
-    public static JSONObject getExcelHeaderDescData(Class<T> clazz) {
-        JSONObject partDescData = getDescriptionByClazz(clazz);
+    private static JSONObject getExcelHeaderDescData(Class<T> clazz) {
+        JSONObject partDescData = getImportDescriptionByClazz(clazz);
         return getExcelHeaderDescInfo(partDescData);
     }
 
@@ -975,9 +1058,9 @@ public class ExcelImportExportUtils {
      * @param sheet  Excel
      * @param <T>    泛型
      */
-    private static <T> JSONObject getFulledExcelDescriptionInfo(Class<T> tClass, Sheet sheet) {
+    private static <T> JSONObject getFulledExcelDescriptionInfo(Sheet sheet, Class<T> tClass) {
         // 获取表格部分描述信息（根据泛型得到的）
-        JSONObject partDescData = getDescriptionByClazz(tClass);
+        JSONObject partDescData = getImportDescriptionByClazz(tClass);
         // 根据相同标题填充index
         return filledTitleIndexBySheet(partDescData, sheet);
     }
@@ -990,7 +1073,7 @@ public class ExcelImportExportUtils {
      * @param clazz 传入的泛型
      * @return 所有加了注解需要映射 标题和字段的Map集合
      */
-    private static JSONObject getDescriptionByClazz(Class<?> clazz) {
+    private static JSONObject getImportDescriptionByClazz(Class<?> clazz) {
         Field[] fields = clazz.getDeclaredFields();// 获取所有字段
         JSONObject excelDescData = new JSONObject();// excel的描述数据
         JSONObject tableBody = new JSONObject();// 表中主体数据信息
@@ -1036,13 +1119,22 @@ public class ExcelImportExportUtils {
 
 
     /**
+     * 获取导出的信息
+     *
+     * @param clazz 泛型
+     */
+    public static JSONObject getExportDescriptionByClazz(Class<?> clazz) throws Exception {
+        return getExportDescriptionByClazzAndSheet(clazz, null);
+    }
+
+    /**
      * 获取导出所需要的所有信息
      *
      * @param clazz 传入的泛型，注解信息
      * @param sheet excel表格
      * @return 表格的信息
      */
-    public static JSONObject getExportDescriptionByClazzAndSheet(Class<?> clazz, Sheet sheet) {
+    private static JSONObject getExportDescriptionByClazzAndSheet(Class<?> clazz, Sheet sheet) throws IOException {
         Field[] fields = clazz.getDeclaredFields();// 获取所有字段
         JSONObject tableHeader = new JSONObject();// 表中主体数据信息
         JSONObject tableBody = new JSONObject();// 表中主体数据信息
@@ -1055,6 +1147,16 @@ public class ExcelImportExportUtils {
             tableHeader.put(TableEnum.TABLE_HEADER_HEIGHT.name(), tableHeaderAnnotation.height());// 表头的高度
             tableHeader.put(TableEnum.RESOURCE.name(), tableHeaderAnnotation.resource());// 模板excel的访问路径
             tableHeader.put(TableEnum.PASSWORD.name(), tableHeaderAnnotation.password());// 模板excel的访问路径
+
+            if (sheet == null) {
+                final Workbook workBook = getWorkBookByResource(tableHeaderAnnotation.resource());
+                excelDescriptionInfo.put(TableEnum.WORK_BOOK.name(), workBook);
+                sheet = workBook.getSheetAt(0);
+                if (sheet == null) {
+                    sheet = workBook.createSheet();
+                }
+                excelDescriptionInfo.put(TableEnum.SHEET.name(), sheet);
+            }
 
             // 2、得到表的Body信息
             for (Field field : fields) {
@@ -1142,6 +1244,43 @@ public class ExcelImportExportUtils {
         excelDescriptionInfo.put(TableEnum.TABLE_HEADER.name(), tableHeader);// 将表头记录信息注入
         excelDescriptionInfo.put(TableEnum.TABLE_BODY.name(), tableBody);// 将表的body记录信息注入
         return excelDescriptionInfo;// 返回记录的所有信息
+    }
+
+    private static Workbook getWorkBookByResource(String resourcePath) throws IOException {
+        String protoPattern = "(.*)://.*";// 得到协议名称
+        final Pattern httpPattern = Pattern.compile(protoPattern);
+        final Matcher matcher = httpPattern.matcher(resourcePath);
+        final boolean flag = matcher.find();
+        if (flag) {
+            final String proto = matcher.group(matcher.groupCount());
+            if (StringUtils.hasText(proto)) {
+                InputStream inputStream;
+                if ("http".equals(proto) || "https".equals(proto)) {
+                    RestTemplate restTemplate = new RestTemplate();
+                    HttpHeaders headers = new HttpHeaders();//创建请求头对象
+                    HttpEntity<String> entity = new HttpEntity<>("", headers);//将请求头传入请求体种
+                    ResponseEntity<Resource> in = restTemplate.exchange(resourcePath, HttpMethod.GET, entity, Resource.class);
+                    //获取请求中的输入流
+                    try (final InputStream is = in.getBody().getInputStream()) {//java9新特性try升级 自动关闭流
+                        inputStream = is;
+                    }
+                } else {
+                    final String[] split = resourcePath.split("://");
+                    if (split[1].startsWith("/")) {
+                        // 是相对路径，给他转为绝对路径
+                        File directory = new File("");//设定为当前文件夹
+                        String currentAbsolutePath = directory.getAbsolutePath();
+                        resourcePath = currentAbsolutePath + "/" + split[1];// 得到新的绝对路径
+                    } else {
+                        resourcePath = split[1];
+                    }
+                    // 绝对路径
+                    inputStream = new FileInputStream(resourcePath);
+                }
+                return new XSSFWorkbook(inputStream);
+            }
+        }
+        return null;
     }
 
 
@@ -1259,6 +1398,7 @@ public class ExcelImportExportUtils {
     static {
         //如果新增了其他类型则继续put添加
         clazzMap.put(BigDecimal.class.getName(), BigDecimal.class);
+        clazzMap.put(Date.class.getName(), Date.class);
         clazzMap.put(String.class.getName(), String.class);
         clazzMap.put(Byte.class.getName(), Byte.class);
         clazzMap.put(Short.class.getName(), Short.class);
@@ -1312,10 +1452,7 @@ public class ExcelImportExportUtils {
                 obj = Float.parseFloat(value);
             }
         } catch (Exception e) {
-            System.out.println(inputValue);
-            System.out.println(exception);
             throw new ClassCastException("类型转换异常，输入的文本内容：" + inputValue);
-            //e.printStackTrace();
         }
 
         return obj;

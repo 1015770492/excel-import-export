@@ -1,25 +1,25 @@
-package top.yumbo.test.excel.exportDemo;
+package top.yumbo.test.excel;
 
 import lombok.Data;
 import top.yumbo.excel.annotation.ExcelCellBind;
 import top.yumbo.excel.annotation.ExcelTableHeader;
-import top.yumbo.excel.enumeration.ExceptionMsg;
+import top.yumbo.excel.enums.ExceptionMsg;
 import top.yumbo.excel.util.BigDecimalUtils;
 
 import java.math.BigDecimal;
+
 /**
  * @author jinhua
- * @date 2021/5/28 14:28
+ * @date 2021/5/28 16:07
  */
 @Data
-@ExcelTableHeader(height = 4, tableName = "区域年度数据",resource = "path://src/test/java/top/yumbo/test/excel/1.xlsx")// 表头占4行
-public class ExcelExportTemplateForYear {
-
+@ExcelTableHeader(height = 4, tableName = "区域年度数据")// 表头占4行
+public class ImportExportForYear {
 
     /**
      * 地区代码，存储最末一级的地区代码就可以
      */
-    @ExcelCellBind(title = "地区", width = 2, exception = ExceptionMsg.NOT_BLANK_EXCEPTION)
+    @ExcelCellBind(title = "地区", width = 2, exception = ExceptionMsg.NOT_BLANK_EXCEPTION,exportSplit = ",")
     private String regionCode;
 
     /**
@@ -179,7 +179,7 @@ public class ExcelExportTemplateForYear {
     /**
      * 上级政府财政总收入
      */
-    @ExcelCellBind(title = "上级政府财政总收入")
+    @ExcelCellBind(title = "上级政府财政总收入", exception = ExceptionMsg.INCORRECT_FORMAT_EXCEPTION, size = BigDecimalUtils.ONE_HUNDRED_MILLION_STRING)
     private BigDecimal superiorGovernmentTotalIncome;
 
 
@@ -192,5 +192,4 @@ public class ExcelExportTemplateForYear {
      * 地区财政总收入/上级政府总收入
      */
     private BigDecimal calFinanceIncomeRegionDivSuperior;
-
 }

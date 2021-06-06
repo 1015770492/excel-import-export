@@ -4,7 +4,7 @@ package top.yumbo.test.excel.importDemo;
 import lombok.Data;
 import top.yumbo.excel.annotation.ExcelCellBind;
 import top.yumbo.excel.annotation.ExcelTableHeader;
-import top.yumbo.excel.enumeration.ExceptionMsg;
+import top.yumbo.excel.enums.ExceptionMsg;
 import top.yumbo.excel.util.BigDecimalUtils;
 import java.math.BigDecimal;
 
@@ -14,7 +14,7 @@ import java.math.BigDecimal;
  */
 @Data
 @ExcelTableHeader(height = 4, tableName = "区域年度数据")// 表头占4行
-public class ExcelImportTemplateForYear {
+public class ImportForYear {
 
 
     /**

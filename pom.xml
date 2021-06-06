@@ -4,9 +4,14 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>top.yumbo.excel.utils</groupId>
+    <groupId>top.yumbo.excel</groupId>
     <artifactId>excel-import-export</artifactId>
     <version>1.0</version>
+    <packaging>jar</packaging><!--打包方式 jar/war/pom-->
+    <name>excel-import-export</name><!--项目名称-->
+    <description>
+        excel import and export utils.
+    </description>
     <properties>
         <!--
         这个值就是git clone 后面部分从github直接复制过来的.git路径，

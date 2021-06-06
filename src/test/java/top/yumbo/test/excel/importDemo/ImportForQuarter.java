@@ -1,37 +1,38 @@
-package top.yumbo.test.excel.exportDemo.simpleDemo;
+package top.yumbo.test.excel.importDemo;
+
 
 import lombok.Data;
 import top.yumbo.excel.annotation.ExcelCellBind;
 import top.yumbo.excel.annotation.ExcelTableHeader;
-import top.yumbo.excel.enumeration.ExceptionMsg;
+import top.yumbo.excel.enums.ExceptionMsg;
 import top.yumbo.excel.util.BigDecimalUtils;
 
 import java.math.BigDecimal;
 
 /**
  * @author jinhua
- * @date 2021/5/28 14:28
+ * @date 2021/5/20 14:18
  */
 @Data
 @ExcelTableHeader(height = 4, tableName = "区域季度数据")// 表头占4行
-public class ExcelSimpleExportForQuarter {
+public class ImportForQuarter {
 
     /**
      * 年份
      */
-    @ExcelCellBind(title = "时间", exportFormat = "%年", exportPriority = 1)
+    @ExcelCellBind(title = "时间", importPattern = "([0-9]{4})年", exception = "年份格式不正确",exportFormat = "%年")
     private Integer year;
 
     /**
      * 季度，填写1到4的数字
      */
-    @ExcelCellBind(title = "时间", exportFormat = "第%s季", exportPriority = 2)
+    @ExcelCellBind(title = "时间", importPattern = "([1-4]{1})季", exception = "季度只能是1，2，3，4",exportFormat = "第%s季",exportPriority = 2)
     private Integer quarter;
 
     /**
      * 地区代码，存储最末一级的地区代码就可以
      */
-    @ExcelCellBind(title = "地区", width = 2, exportSplit = ",")
+    @ExcelCellBind(title = "地区", width = 2, exception = "地区不存在")
     private String regionCode;
 
     /**
@@ -87,4 +88,6 @@ public class ExcelSimpleExportForQuarter {
      */
     @ExcelCellBind(title = "数财通系统部署情况", exception = ExceptionMsg.NOT_BLANK_EXCEPTION)
     private String sctDeployStatus;
+
+
 }

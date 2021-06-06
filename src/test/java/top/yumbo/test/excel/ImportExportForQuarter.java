@@ -3,7 +3,7 @@ package top.yumbo.test.excel;
 import lombok.Data;
 import top.yumbo.excel.annotation.ExcelCellBind;
 import top.yumbo.excel.annotation.ExcelTableHeader;
-import top.yumbo.excel.enumeration.ExceptionMsg;
+import top.yumbo.excel.enums.ExceptionMsg;
 import top.yumbo.excel.util.BigDecimalUtils;
 
 import java.math.BigDecimal;
@@ -14,12 +14,12 @@ import java.math.BigDecimal;
  */
 @Data
 @ExcelTableHeader(height = 4, tableName = "区域季度数据")// 表头占4行
-public class ExcelImportExportTemplateForQuarter {
+public class ImportExportForQuarter {
 
     /**
      * 年份
      */
-    @ExcelCellBind(title = "时间", importPattern = "([0-9]{4})年", exception = "年份格式不正确", exportFormat = "%年", exportPriority = 1)
+    @ExcelCellBind(title = "时间", importPattern = "([0-9]{4})年",nullable = true, exception = "年份格式不正确", exportFormat = "%年", exportPriority = 1)
     private Integer year;
 
     /**

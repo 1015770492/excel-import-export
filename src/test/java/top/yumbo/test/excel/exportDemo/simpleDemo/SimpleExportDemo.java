@@ -13,7 +13,7 @@ import java.lang.reflect.Field;
  * @author jinhua
  * @date 2021/5/28 14:28
  */
-public class ExcelSimpleExportDemo {
+public class SimpleExportDemo {
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
