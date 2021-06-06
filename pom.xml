@@ -5,14 +5,14 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>top.yumbo.excel.utils</groupId>
-    <artifactId>ExcelImportAndExport</artifactId>
+    <artifactId>excel-import-export</artifactId>
     <version>1.0</version>
     <properties>
         <!--
         这个值就是git clone 后面部分从github直接复制过来的.git路径，
         实际就是项目地址加上 .git
         -->
-        <projectUrl>https://github.com/1015770492/ExcelImportAndOutput.git</projectUrl>
+        <projectUrl>https://github.com/1015770492/excel-import-export.git</projectUrl>
         <serverId>ossrh</serverId><!-- 服务id -->
     </properties>
 
@@ -21,11 +21,11 @@
         <developer>
             <name>yujinhua</name>
             <email>1015770492@qq.com</email>
-            <url>https://github.com/1015770492/ExcelImportAndOutput</url>
+            <url>https://github.com/1015770492/excel-import-export</url>
         </developer>
     </developers>
     <!--以下部分内容不需要修改，直接复制咱贴即可-->
-    <url>https://github.com/1015770492/ExcelImportAndOutput</url>
+    <url>https://github.com/1015770492/excel-import-export</url>
     <licenses>
         <license>
             <name>The Apache Software License, Version 2.0</name>
@@ -35,9 +35,9 @@
     </licenses>
     <scm>
         <!-- 采用projectUrl变量代替这个值，方便给重复利用这个配置，也就是上面的标签替换一下值就行 -->
-        <connection>https://github.com/1015770492/ExcelImportAndOutput</connection>
-        <developerConnection>https://github.com/1015770492/ExcelImportAndOutput</developerConnection>
-        <url>https://github.com/1015770492/ExcelImportAndOutput</url>
+        <connection>https://github.com/1015770492/excel-import-export</connection>
+        <developerConnection>https://github.com/1015770492/excel-import-export</developerConnection>
+        <url>https://github.com/1015770492/excel-import-export</url>
     </scm>
     <distributionManagement>
         <snapshotRepository>
@@ -57,7 +57,7 @@
         <!-- 这里面只用到了StringUtils做字符串判空其它没啥用可以自己修改源码 -->
         <dependency>
             <groupId>org.springframework</groupId>
-            <artifactId>spring-beans</artifactId>
+            <artifactId>spring-web</artifactId>
             <version>5.3.7</version>
         </dependency>
         <!-- 操作excel的依赖工具包 -->
