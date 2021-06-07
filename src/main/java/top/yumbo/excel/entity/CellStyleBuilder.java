@@ -2,7 +2,9 @@ package top.yumbo.excel.entity;
 
 import lombok.Builder;
 import lombok.Data;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.util.StringUtils;
 
 /**
@@ -11,7 +13,7 @@ import org.springframework.util.StringUtils;
  */
 @Builder
 @Data
-public class CellStyleEntity {
+public class CellStyleBuilder {
     private String fontName;
     private Integer fontSize;
     /**
@@ -48,10 +50,31 @@ public class CellStyleEntity {
     private Boolean wrapText;
     private Boolean autoShrink;
 
-    public CellStyle getCellStyle(Workbook wb){
+
+    /**
+     * 默认返回新版本的样式
+     */
+    public CellStyle getCellStyle() {
+        return getCellStyle("xlsx");
+    }
+    /**
+     * 构建一个样式
+     *
+     * @param type 如果是xls则type="xls" 如果是xlsx则type="xlsx"
+     */
+    public CellStyle getCellStyle(String type) {
+        Workbook workbook;
+        if ("xls".equals(type)) {
+            workbook = new HSSFWorkbook();
+        } else {
+            workbook = new XSSFWorkbook();
+        }
+        return getCellStyle(workbook);
+    }
+
+    public CellStyle getCellStyle(Workbook wb) {
         CellStyle cellStyle = wb.createCellStyle();
         Font font = wb.createFont();
-
         if (!StringUtils.hasText(fontName)) fontName = "微软雅黑";
         if (fontSize == null) fontSize = 11;
         if (fontColor == null) fontColor = 8;

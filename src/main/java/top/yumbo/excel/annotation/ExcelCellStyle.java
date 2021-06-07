@@ -5,17 +5,26 @@ import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.HorizontalAlignment;
 import org.apache.poi.ss.usermodel.VerticalAlignment;
 
+import java.lang.annotation.*;
+
 /**
  * @author jinhua
  * @date 2021/6/2 10:20
  */
+@Target({ElementType.FIELD})
+@Retention(RetentionPolicy.RUNTIME)
+@Repeatable(ExcelCellStyles.class)
 public @interface ExcelCellStyle {
+
+    /**
+     * 样式的id
+     */
+    String id() default "1";
 
     /**
      * 是否使隐藏样式（是否启用样式）
      */
     boolean hidden() default false;
-
 
     /**
      * 是否锁定单元格（可编辑/不可编辑）,默认不上锁（可编辑）
@@ -30,7 +39,7 @@ public @interface ExcelCellStyle {
     /**
      * 默认字体11号
      */
-    short fontSize() default 11;
+    int fontSize() default 11;
 
     /**
      * 字体加粗
@@ -50,17 +59,17 @@ public @interface ExcelCellStyle {
     /**
      * 背景颜色   详情见：{@link org.apache.poi.ss.usermodel.IndexedColors}
      */
-    short backgroundColor() default 9;
+    int backgroundColor() default 9;
 
     /**
      * 文字旋转角度
      */
-    short rotation() default 0;
+    int rotation() default 0;
 
     /**
      * 默认白色是9  {@link org.apache.poi.ss.usermodel.IndexedColors}
      */
-    short foregroundColor() default 9;
+    int foregroundColor() default 9;
 
     /**
      * 填充图案，钻石、细点等，默认不填充
@@ -80,12 +89,12 @@ public @interface ExcelCellStyle {
     /**
      * 上、下、左、右 边框样式
      */
-    BorderStyle top() default BorderStyle.NONE;
+    BorderStyle top() default BorderStyle.THIN;
 
-    BorderStyle bottom() default BorderStyle.NONE;
+    BorderStyle bottom() default BorderStyle.THIN;
 
-    BorderStyle left() default BorderStyle.NONE;
+    BorderStyle left() default BorderStyle.THIN;
 
-    BorderStyle right() default BorderStyle.NONE;
+    BorderStyle right() default BorderStyle.THIN;
 
 }
