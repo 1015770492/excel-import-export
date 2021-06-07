@@ -1,31 +1,18 @@
 ## Excel表格转换工具包
 ### 用到的依赖：fastjson、poi-tl、lombok、spring-bean（只用到了字符串工具）
+## 引入依赖
+
+[maven中央仓库地址（选择最新版本的文档会更新到最新版本）](https://mvnrepository.com/artifact/top.yumbo.excel/excel-import-export)
+
+以其中一个版本为例（选择最新版的）
 ```xml
-<!-- 这里面只用到了StringUtils做字符串判空其它没啥用可以自己修改源码 -->
+<!-- https://mvnrepository.com/artifact/top.yumbo.excel/excel-import-export -->
 <dependency>
-    <groupId>org.springframework</groupId>
-    <artifactId>spring-beans</artifactId>
-    <version>5.3.7</version>
+    <groupId>top.yumbo.excel</groupId>
+    <artifactId>excel-import-export</artifactId>
+    <version>1.1</version>
 </dependency>
-<!-- 操作excel的依赖工具包 -->
-<dependency>
-    <groupId>com.deepoove</groupId>
-    <artifactId>poi-tl</artifactId>
-    <version>1.9.1</version>
-</dependency>
-<!-- fastjson工具包 -->
-<dependency>
-    <groupId>com.alibaba</groupId>
-    <artifactId>fastjson</artifactId>
-    <version>1.2.76</version>
-</dependency>
-<!-- lombok 工具 -->
-<dependency>
-    <groupId>org.projectlombok</groupId>
-    <artifactId>lombok</artifactId>
-    <version>1.18.20</version>
-    <scope>provided</scope>
-</dependency>
+
 ```
 
 ### 注意
@@ -179,111 +166,56 @@ public class ExcelExportTemplateForQuarter {
 
 #### 实现自定义样式高亮显示功能
 
-##### 高亮行
+#### 一、导出的时候高亮行，根据每一行数据来自定义高亮行的样式
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20210607232159981.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3FxXzQxODEzMjA4,size_16,color_FFFFFF,t_70)
 
-设计原理结合java8的函数式接口，将其中样式的生效是否逻辑，通过断言型接口来判断，而断言的逻辑可以通过lambda表达式
-实现逻辑的断言。
 
-1、创建样式：
-通过建造者模式设置单元格样式，代码示例如下：
-```java
-CellStyleEntity.builder().fontName("微软雅黑").fontSize(12).bgColor(9).build().getCellStyle(workbook)
-```
+例如按照第一季度的显示`黄色`、第二季度显示`玫瑰色`、第三季度显示`天蓝色`、第四季度显示`灰色`
 
-2、创建断言器：
-```java
-final Function<ExcelExportTemplateForQuarter,Integer> functional = (one) -> {
-    if (one.getRiskNature().equals("技术违约") && (one.getYear() % 2 == 0 || one.getQuarter() == 3)) {
-        return 1;
-    } else {
-        return 0;
-    }
-};
-```
-##### 完整的代码示例：
+示例代码
 ```java
 /**
- * 某些行高亮展示
+ * 得到List集合
  */
-// 3种样式
-final List<CellStyle> cellStyleList = Arrays.asList(
-        CellStyleEntity.builder().fontName("微软雅黑").fontSize(12).bgColor(9).build().getCellStyle(workbook),
-        CellStyleEntity.builder().fontSize(12).bgColor(9).foregroundColor(13).build().getCellStyle(workbook),
-        CellStyleEntity.builder().fontName("微软雅黑").fontSize(12).bgColor(10).build().getCellStyle(workbook)
-);
-// 使用函数时接口返回样式的下标，然后就会将样式注入进去
-ExcelImportExportUtils.filledListToSheetWithCellStyleByFunction(quarterList, cellStyleList, (one) -> {
-    if (one.getRiskNature().equals("技术违约") && (one.getYear() % 2 == 0 || one.getQuarter() == 3)) {
-        return 1;
-    }else {
-        return 0;
-    }
-}, workbook.getSheetAt(0));
+System.out.println("=====导入季度数据======");
+String areaQuarter = "src/test/java/top/yumbo/test/excel/2.xlsx";
+final List<ExportForQuarter> quarterList = ExcelImportExportUtils.importExcel(new FileInputStream(areaQuarter), ExportForQuarter.class, "xlsx");
+
+/**
+ * 将其导出
+ */
+if (quarterList != null) {
+    quarterList.forEach(System.out::println);
+    // 将数据导出到本地文件,如果要导出到web暴露出去只要传入输出流即可
+    /**
+     * 原样式导出
+     */
+    final Workbook workbook = ExcelImportExportUtils.exportExcel(quarterList, new FileOutputStream("D:/季度数据-原样式导出.xlsx"));
+    /**
+     * 高亮行方式导出
+     */
+    ExcelImportExportUtils.exportExcelRowHighLight(quarterList,
+            new FileOutputStream("D:/季度数据-高亮行导出.xlsx"),
+            (t) -> {
+                if (t.getQuarter() == 1) {
+                    return IndexedColors.YELLOW;
+                } else if (t.getQuarter() == 2) {
+                    return IndexedColors.ROSE;
+                } else if (t.getQuarter() == 3) {
+                    return IndexedColors.SKY_BLUE;
+                } else if (t.getQuarter() == 4) {
+                    return IndexedColors.GREY_25_PERCENT;
+                }else {
+                    return IndexedColors.WHITE;
+                }
+            });
+}
 ```
 
 
-导出结果示例：
-
-<img src="https://img-blog.csdnimg.cn/20210604160604627.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3FxXzQxODEzMjA4,size_16,color_FFFFFF,t_70" />
 使用案例：
 
 [高亮行的示例代码](https://github.com/1015770492/ExcelImportAndExport/blob/master/src/test/java/top/yumbo/test/excel/exportDemo/ExcelExportDemo.java)
 
 ##### 高亮符合条件的单元格
-
-高亮 市州 或 区县 内容为XX市的内容
-
-结果示例：再上面的导出代码链接的 案例2中，取消注释即可
-
-<img src="https://img-blog.csdnimg.cn/2021060416153964.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3FxXzQxODEzMjA4,size_16,color_FFFFFF,t_70"/>
-
-
-完整的代码
-```java
-final CellStyle cellStyle = CellStyleEntity.builder().fontName("微软雅黑").bold(true).fontSize(12).build().getCellStyle(workbook);
-//
-final CellStyle cellStyle3 = CellStyleEntity.builder().fontSize(12).fontColor(14).foregroundColor(13).build().getCellStyle(workbook);
-final CellStyle cellStyle4 = CellStyleEntity.builder().fontSize(12).fontColor(10).bold(true).fontColor(14).foregroundColor(40).build().getCellStyle(workbook);
-final TitlePredicateList<ExcelExportTemplateForQuarter> predicateList = new TitlePredicateList<>();
-// 提供断言处理
-Predicate<ExcelExportTemplateForQuarter> predicate = (e) -> {
-    String regex = ".*市";// 高亮市
-    final Pattern pattern = Pattern.compile(regex);
-    final Matcher matcher = pattern.matcher(e.getRegionCode().split(",")[0]);
-    if (matcher.matches()) {
-        return true;
-    }
-    return false;
-};
-Predicate<ExcelExportTemplateForQuarter> predicate2 = (e) -> {
-    String regex = ".*市";// 高亮市
-    final Pattern pattern = Pattern.compile(regex);
-    final Matcher matcher = pattern.matcher(e.getRegionCode().split(",")[1]);
-    if (matcher.matches()) {
-        return true;
-    }
-    return false;
-};
-Predicate<ExcelExportTemplateForQuarter> predicate3 = (e) -> {
-    if (e.getRiskNature().equals("管理失误违约")) {
-        return true;
-    }
-    return false;
-};
-// 高亮时间，第3季度的背景色设置为蓝色，字体红色加粗
-Predicate<ExcelExportTemplateForQuarter> predicate4 = (e) -> {
-    if (e.getQuarter() == 3) {
-        return true;
-    }
-    return false;
-};
-
-final List<TitleCellStylePredicate<ExcelExportTemplateForQuarter>> titlePredicateList = predicateList
-        .add("市州", cellStyle, predicate)
-        .add("区县", cellStyle, predicate2)
-        .add("风险性质", cellStyle3, predicate3)
-        .add("时间", cellStyle4, predicate4)
-        .getTitlePredicateList();
-ExcelImportExportUtils.filledListToSheetWithCellStyleByBatchTitlePredicate(quarterList, titlePredicateList, sheet);
-```
 
