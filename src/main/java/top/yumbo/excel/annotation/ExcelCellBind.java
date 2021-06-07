@@ -64,11 +64,6 @@ public @interface ExcelCellBind {
     boolean nullable() default false;
 
     /**
-     * 这行标题在第几行
-     */
-    //int row() default 0;
-
-    /**
      * 单元格索引位置
      */
     int index() default -1;

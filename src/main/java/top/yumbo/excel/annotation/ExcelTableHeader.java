@@ -36,6 +36,11 @@ public @interface ExcelTableHeader {
     String resource() default "";
 
     /**
+     * excel的格式，xls于xlsx不兼容所致，默认xlsx
+     */
+    String type() default "xlsx";
+
+    /**
      * 默认密码，可编辑/不可编辑单元格需要用到
      */
     String password() default "123456";

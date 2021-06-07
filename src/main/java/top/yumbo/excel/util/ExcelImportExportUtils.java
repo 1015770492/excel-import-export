@@ -5,8 +5,8 @@ import com.alibaba.fastjson.JSONObject;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.formula.functions.T;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFColor;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.springframework.core.io.Resource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -48,9 +48,11 @@ import java.util.regex.Pattern;
  */
 public class ExcelImportExportUtils {
 
+
+
     //表头信息
     public enum TableEnum {
-        WORK_BOOK, SHEET, TABLE_NAME, TABLE_HEADER, TABLE_HEADER_HEIGHT, RESOURCE, TABLE_BODY, PASSWORD
+        WORK_BOOK, SHEET, TABLE_NAME, TABLE_HEADER, TABLE_HEADER_HEIGHT, RESOURCE, TYPE, TABLE_BODY, PASSWORD
     }
 
     // 单元格信息
@@ -136,7 +138,7 @@ public class ExcelImportExportUtils {
      * @param list         待导入的数据集合
      * @param outputStream 导出的文件输出流
      */
-    public static <T> Workbook exportExcel(List<T> list, OutputStream outputStream) throws Exception {
+    public static <T> void exportExcel(List<T> list, OutputStream outputStream) throws Exception {
         if (list != null && list.size() > 0 && outputStream != null) {
             // 根据泛型得到导出的信息以及模板
             final JSONObject exportInfo = getExportInfo(list.get(0).getClass());
@@ -145,8 +147,9 @@ public class ExcelImportExportUtils {
             final Workbook workbook = getWorkBook(exportInfo);
             // 将数据填入到表格（默认样式）
             listToExcel(list, sheet);
-            // 将工作簿写入输入流
-            return workbook;
+            workbook.write(outputStream);
+            System.out.println("默认样式导出完毕");
+            workbook.close();
         } else if (list == null) {
             throw new NullPointerException("list不能为null");
         } else {
@@ -155,6 +158,13 @@ public class ExcelImportExportUtils {
     }
 
 
+    /**
+     * 行高亮显示
+     *
+     * @param list         数据
+     * @param outputStream 导出的文件的输出流
+     * @param function     功能性函数，返回颜色值
+     */
     public static <T> void exportExcelRowHighLight(List<T> list, OutputStream outputStream, Function<T, IndexedColors> function) throws Exception {
         final JSONObject exportInfo = getExportInfo(list.get(0).getClass());
         final JSONObject titleInfo = getExcelBodyDescInfo(exportInfo);
@@ -288,8 +298,13 @@ public class ExcelImportExportUtils {
             }
         }
         getWorkBook(exportInfo).write(outputStream);
+        System.out.println("高亮行显示导出完毕");
     }
+    public static <T> void exportExcelRowHighLightRGBColor(List<T> list, FileOutputStream fileOutputStream, Function<T,Color> function) {
+        byte []rgb={new Integer(212).byteValue(),44,new Integer(144).byteValue()};
+        final XSSFColor xssfColor = new XSSFColor(rgb, null);
 
+    }
 
     /**
      * (导入)将sheet解析成List类型的数据
@@ -324,7 +339,7 @@ public class ExcelImportExportUtils {
      * @return excel工作簿
      * @throws Exception 抛出的异常
      */
-    private static <T> Workbook listToExcel(List<T> list, Sheet sheet) throws Exception {
+    private static <T> void listToExcel(List<T> list, Sheet sheet) throws Exception {
         if (list != null && sheet != null) {
             if (list.size() > 0) {
                 final JSONArray listArray = listToJSONArray(list);
@@ -333,7 +348,7 @@ public class ExcelImportExportUtils {
 
                 // 将list按照导出的描述信息填入Excel
                 jsonArrayToExcel(listArray, exportInfo, sheet);
-                return getWorkBook(exportInfo);
+
             } else {
                 throw new Exception("list集合没有数据");
             }
@@ -390,7 +405,8 @@ public class ExcelImportExportUtils {
                     cellStyle.setLocked(true);
                     cellStyle.setFont(font);
                     cellStyle.setAlignment(HorizontalAlignment.CENTER);
-                    cellStyle.setFillBackgroundColor((short) 12);
+                    cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+                    cellStyle.setFillForegroundColor((short) 12);
                     cell.setCellStyle(cellStyle);
                 }
 
@@ -848,10 +864,11 @@ public class ExcelImportExportUtils {
             tableHeader.put(TableEnum.TABLE_NAME.name(), tableHeaderAnnotation.tableName());// 表的名称
             tableHeader.put(TableEnum.TABLE_HEADER_HEIGHT.name(), tableHeaderAnnotation.height());// 表头的高度
             tableHeader.put(TableEnum.RESOURCE.name(), tableHeaderAnnotation.resource());// 模板excel的访问路径
+            tableHeader.put(TableEnum.TYPE.name(), tableHeaderAnnotation.type());// xlsx 或 xls 格式
             tableHeader.put(TableEnum.PASSWORD.name(), tableHeaderAnnotation.password());// 模板excel的访问路径
             if (sheet == null) {
                 // sheet不存在则从注解信息中获取
-                final Workbook workBook = getWorkBookByResource(tableHeaderAnnotation.resource());
+                final Workbook workBook = getWorkBookByResource(tableHeaderAnnotation.resource(), tableHeaderAnnotation.type());
                 sheet = workBook.getSheetAt(0);
                 if (sheet == null) {
                     sheet = workBook.createSheet();
@@ -954,7 +971,7 @@ public class ExcelImportExportUtils {
      *
      * @param resourcePath 资源路径
      */
-    private static Workbook getWorkBookByResource(String resourcePath) throws IOException, IllegalArgumentException {
+    private static Workbook getWorkBookByResource(String resourcePath, String type) throws IOException, IllegalArgumentException {
         String protoPattern = "(.*)://.*";// 得到协议名称
         final Pattern httpPattern = Pattern.compile(protoPattern);
         final Matcher matcher = httpPattern.matcher(resourcePath);
@@ -965,10 +982,11 @@ public class ExcelImportExportUtils {
                 if ("http".equals(proto) || "https".equals(proto)) {
                     RestTemplate restTemplate = new RestTemplate();
                     HttpHeaders headers = new HttpHeaders();//创建请求头对象
-                    HttpEntity<String> entity = new HttpEntity<>("", headers);//将请求头传入请求体种
-                    ResponseEntity<Resource> in = restTemplate.exchange(resourcePath, HttpMethod.GET, entity, Resource.class);
+                    HttpEntity<String> entity = new HttpEntity<>("", headers);
+                    ResponseEntity<byte[]> obj = restTemplate.exchange(resourcePath, HttpMethod.GET, entity, byte[].class);
+                    final byte[] body = obj.getBody();
                     //获取请求中的输入流
-                    try (final InputStream is = in.getBody().getInputStream()) {//java9新特性try升级 自动关闭流
+                    try (final InputStream is = new ByteArrayInputStream(body)) {//java9新特性try升级 自动关闭流
                         inputStream = is;
                     }
                 } else {
@@ -984,7 +1002,11 @@ public class ExcelImportExportUtils {
                     // 绝对路径
                     inputStream = new FileInputStream(resourcePath);
                 }
-                return new XSSFWorkbook(inputStream);
+                if ("xlsx".equals(type)) {
+                    return new XSSFWorkbook(inputStream);
+                } else {
+                    return new HSSFWorkbook(inputStream);
+                }
             }
             throw new IllegalArgumentException("请带上协议头例如http://");
         } else {

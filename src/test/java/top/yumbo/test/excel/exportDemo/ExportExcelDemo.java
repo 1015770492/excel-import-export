@@ -2,7 +2,6 @@ package top.yumbo.test.excel.exportDemo;
 
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.IndexedColors;
-import org.apache.poi.ss.usermodel.Workbook;
 import top.yumbo.excel.entity.CellStyleBuilder;
 import top.yumbo.excel.util.ExcelImportExportUtils;
 
@@ -35,7 +34,7 @@ public class ExportExcelDemo {
             /**
              * 原样式导出
              */
-            final Workbook workbook = ExcelImportExportUtils.exportExcel(quarterList, new FileOutputStream("D:/季度数据-原样式导出.xlsx"));
+            ExcelImportExportUtils.exportExcel(quarterList, new FileOutputStream("D:/季度数据-原样式导出.xlsx"));
             /**
              * 高亮行
              */
@@ -45,14 +44,18 @@ public class ExportExcelDemo {
                         if (t.getQuarter() == 1) {
                             return IndexedColors.YELLOW;
                         } else if (t.getQuarter() == 2) {
-                            return IndexedColors.RED;
+                            return IndexedColors.ROSE;
                         } else if (t.getQuarter() == 3) {
-                            return IndexedColors.GOLD;
+                            return IndexedColors.SKY_BLUE;
                         } else if (t.getQuarter() == 4) {
                             return IndexedColors.GREY_25_PERCENT;
-                        }else {
+                        } else {
                             return IndexedColors.WHITE;
                         }
+                    });
+            ExcelImportExportUtils.exportExcelRowHighLightRGBColor(quarterList, new FileOutputStream("D:/季度数据-自定义颜色高亮行导出.xlsx"),
+                    (t) -> {
+                        return null;
                     });
         }
         /**

@@ -14,7 +14,7 @@ import java.math.BigDecimal;
  * @date 2021/5/28 14:28
  */
 @Data
-@ExcelTableHeader(height = 4, tableName = "区域季度数据", resource = "path:///src/test/java/top/yumbo/test/excel/2.xlsx")
+@ExcelTableHeader(height = 4, tableName = "区域季度数据", resource = "https://yumbo-oss.oss-cn-shenzhen.aliyuncs.com/2.xlsx?versionId=CAEQIhiBgMDOsLCazxciIDA5MGUyNTA0NDYyNzRhNTZiNDUwMTZmZWUwMmU4ZTA1")
 // 表头占4行，使用了相对路径
 public class ExportForQuarter {
 
