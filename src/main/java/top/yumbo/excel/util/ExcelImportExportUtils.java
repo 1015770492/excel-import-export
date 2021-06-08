@@ -131,17 +131,6 @@ public class ExcelImportExportUtils {
         return null;
     }
 
-    /**
-     * 导出excel，在没有输入resource的情况下
-     */
-    public static <T> void exportExcel(List<T> list, InputStream inputStream, String type, OutputStream outputStream) throws Exception {
-        Workbook workbook = getWorkBook(inputStream, type);
-        final Sheet sheet = workbook.getSheetAt(0);
-        // 将数据填入到表格（默认样式）
-        listToExcel(list, sheet);
-        workbook.write(outputStream);
-        workbook.close();
-    }
 
     /**
      * 导出Excel,使用默认样式  （传入list 和 输出流）
@@ -150,69 +139,45 @@ public class ExcelImportExportUtils {
      * @param outputStream 导出的文件输出流
      */
     public static <T> void exportExcel(List<T> list, OutputStream outputStream) throws Exception {
-        if (list != null && list.size() > 0 && outputStream != null) {
-            // 根据泛型得到导出的信息以及模板
-            final JSONObject exportInfo = getExportInfo(list.get(0).getClass());
-            final Sheet sheet = getSheet(exportInfo);
-            // 得到工作簿对象
-            final Workbook workbook = getWorkBook(exportInfo);
-            // 将数据填入到表格（默认样式）
-            listToExcel(list, sheet);
-            workbook.write(outputStream);
-            System.out.println("默认样式导出完毕");
-            workbook.close();
-        } else if (list == null) {
-            throw new NullPointerException("list不能为null");
-        } else {
-            throw new NullPointerException("输出流不能为空");
-        }
+        exportExcel(list, null, null, outputStream);
     }
 
+    /**
+     * 导出excel，在没有输入resource的情况下
+     * 默认的样式
+     */
+    public static <T> void exportExcel(List<T> list, InputStream inputStream, String type, OutputStream outputStream) throws Exception {
+        exportExcelRowHighLight(list, inputStream, type, outputStream, null);
+    }
 
     /**
      * 高亮行的方式导出
      */
     public static <T> void exportExcelRowHighLight(List<T> list, InputStream inputStream, String type, OutputStream outputStream, Function<T, IndexedColors> function) throws Exception {
+        if (list != null && list.size() > 0 && outputStream != null) {
+            final JSONObject exportInfo = getExportInfo(list.get(0).getClass());
+            final JSONObject titleInfo = getExcelBodyDescInfo(exportInfo);
+            final JSONArray jsonArray = listToJSONArray(list);
+            Sheet sheet;
+            Workbook workbook;
+            if (inputStream != null && StringUtils.hasText(type)) {
+                workbook = getWorkBook(inputStream, type);
+                sheet = workbook.getSheetAt(0);
+            } else {
+                workbook = getWorkBook(exportInfo);
+                sheet = getSheet(exportInfo);
+            }
+            final Integer height = getTableHeight(getExcelHeaderDescInfo(exportInfo));
 
-        final JSONObject exportInfo = getExportInfo(list.get(0).getClass());
-        final JSONObject titleInfo = getExcelBodyDescInfo(exportInfo);
-        final JSONArray jsonArray = listToJSONArray(list);
-        Sheet sheet = null;
-        Workbook workbook = null;
-        if (inputStream != null && StringUtils.hasText(type)) {
-            workbook = getWorkBook(inputStream, type);
-            sheet = workbook.getSheetAt(0);
-        } else {
-            workbook = getWorkBook(exportInfo);
-            sheet = getSheet(exportInfo);
-        }
-        final Integer height = getTableHeight(getExcelHeaderDescInfo(exportInfo));
-
-        // 一行一行填充
-        for (int i = 0; i < jsonArray.size(); i++) {
-            int rowNum = height + i;
-            final Row[] row = {sheet.getRow(rowNum)};// 创建一行数据
-            final JSONObject json = jsonArray.getJSONObject(i);
-            AtomicReference<Exception> exception = new AtomicReference<>();
-            // 遍历表身体信息
-            int finalI = i;
-            Sheet finalSheet = sheet;
-            titleInfo.forEach((titleIdx, v) -> {
-                if (row[0] == null) {
-                    row[0] = finalSheet.createRow(rowNum);
-                }
-                // 标题 索引
-                int titleIndex = Integer.parseInt(titleIdx);
-                if (titleIndex < 0) {
-                    return;
-                }
-                // 给这个 index单元格 填入 value
-                Cell cell = row[0].getCell(titleIndex);// 得到单元格
-                if (cell == null) {
-                    cell = row[0].createCell(titleIndex);
-                }
-                Workbook wb = finalSheet.getWorkbook();
-                CellStyle cellStyle = wb.createCellStyle();
+            // 一行一行填充
+            for (int i = 0; i < jsonArray.size(); i++) {
+                int rowNum = height + i;
+                final Row[] row = {sheet.getRow(rowNum)};// 创建一行数据
+                final JSONObject json = jsonArray.getJSONObject(i);
+                AtomicReference<Exception> exception = new AtomicReference<>();
+                // 遍历表身体信息
+                Sheet finalSheet = sheet;
+                CellStyle cellStyle = workbook.createCellStyle();
                 Font font = finalSheet.getWorkbook().createFont();
                 font.setFontName("微软雅黑");
                 font.setFontHeightInPoints((short) 11);//设置字体大小
@@ -223,99 +188,122 @@ public class ExcelImportExportUtils {
                 cellStyle.setBorderTop(BorderStyle.THIN);
                 cellStyle.setBorderBottom(BorderStyle.THIN);
                 cellStyle.setAlignment(HorizontalAlignment.CENTER);
-                final short index = function.apply(list.get(finalI)).getIndex();
+                short index = IndexedColors.WHITE.getIndex();// 默认白色背景
+                if (function != null) {
+                    index = function.apply(list.get(i)).getIndex();
+                }
                 cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
                 cellStyle.setFillForegroundColor(index);// 设置颜色
-                cell.setCellStyle(cellStyle);
-
-                if (v instanceof JSONArray) {
-                    // 多个字段合并成一个单元格内容
-                    JSONArray array = (JSONArray) v;
-                    String[] linkedFormatString = new String[array.size()];
-                    final AtomicInteger atomicInteger = new AtomicInteger(0);
-                    final Object[] objects = array.toArray();
-                    for (Object obj : objects) {
-                        // 处理每一个字段
-                        JSONObject fieldDescData = (JSONObject) obj;
-                        // 得到转换后的内容
-                        final String resultValue = getValueByFieldInfo(json, fieldDescData);
-                        linkedFormatString[atomicInteger.getAndIncrement()] = resultValue;// 存入该位置
+                titleInfo.forEach((titleIdx, v) -> {
+                    if (row[0] == null) {
+                        row[0] = finalSheet.createRow(rowNum);
+                    }
+                    // 标题 索引
+                    int titleIndex = Integer.parseInt(titleIdx);
+                    if (titleIndex < 0) {
+                        return;
+                    }
+                    // 给这个 index单元格 填入 value
+                    Cell cell = row[0].getCell(titleIndex);// 得到单元格
+                    if (cell == null) {
+                        cell = row[0].createCell(titleIndex);
                     }
 
-                    final StringBuilder stringBuilder = new StringBuilder();
-                    for (String s : linkedFormatString) {
-                        stringBuilder.append(s);
-                    }
-                    String value = stringBuilder.toString();// 得到了合并后的内容
-                    cell.setCellValue(value);
+                    cell.setCellStyle(cellStyle);
 
-                } else {
-                    // 一个字段可能要拆成多个单元格
-                    JSONObject jsonObject = (JSONObject) v;
-                    final String format = jsonObject.getString(CellEnum.FORMAT.name());
-                    final Integer priority = jsonObject.getInteger(CellEnum.PRIORITY.name());
-                    final String fieldName = jsonObject.getString(CellEnum.FIELD_NAME.name());
-                    final String fieldType = jsonObject.getString(CellEnum.FIELD_TYPE.name());
-                    final String size = jsonObject.getString(CellEnum.SIZE.name());
-                    final String split = jsonObject.getString(CellEnum.SPLIT.name());
-                    String fieldValue = String.valueOf(json.get(fieldName));// 得到这个字段值
-                    final Integer width = jsonObject.getInteger(CellEnum.WIDTH.name());
-
-                    if (width > 1) {
-                        // 一个字段需要拆分成多个单元格
-                        if (StringUtils.hasText(split)) {
-                            // 有拆分词
-                            final String[] splitArray = fieldValue.split(split);// 先拆分字段
-                            if (StringUtils.hasText(format)) {
-                                // 有格式化模板
-                                final String[] formatStr = format.split(split);// 拆分后的格式化内容
-                                for (int j = 0; j < width; j++) {
-                                    cell = row[0].getCell(titleIndex + j);
-                                    if (cell == null) {
-                                        cell = row[0].createCell(titleIndex + j);// 得到单元格
-                                    }
-                                    String formattedStr = formatStr[j].replace("$" + j, splitArray[j]);// 替换字符串
-                                    cell.setCellStyle(cellStyle);
-                                    cell.setCellValue(formattedStr);// 将格式化后的字符串填入
-                                }
-                            } else {
-                                // 没有格式化模板直接填入内容
-                                for (int j = 0; j < width; j++) {
-                                    cell = row[0].getCell(titleIndex + j);
-                                    if (cell == null) {
-                                        cell = row[0].createCell(titleIndex + j);// 得到单元格
-                                    }
-                                    String formattedStr = format.replace("$" + j, splitArray[j]);// 替换字符串
-                                    cell.setCellStyle(cellStyle);
-                                    cell.setCellValue(formattedStr);// 将格式化后的字符串填入
-                                }
-                            }
-
-                        } else {
-                            // 没有拆分词，本身需要拆分，抛异常
-                            exception.set(new Exception(fieldName + "字段的注解上 缺少exportSplit拆分词"));
+                    if (v instanceof JSONArray) {
+                        // 多个字段合并成一个单元格内容
+                        JSONArray array = (JSONArray) v;
+                        String[] linkedFormatString = new String[array.size()];
+                        final AtomicInteger atomicInteger = new AtomicInteger(0);
+                        final Object[] objects = array.toArray();
+                        for (Object obj : objects) {
+                            // 处理每一个字段
+                            JSONObject fieldDescData = (JSONObject) obj;
+                            // 得到转换后的内容
+                            final String resultValue = getValueByFieldInfo(json, fieldDescData);
+                            linkedFormatString[atomicInteger.getAndIncrement()] = resultValue;// 存入该位置
                         }
+
+                        final StringBuilder stringBuilder = new StringBuilder();
+                        for (String s : linkedFormatString) {
+                            stringBuilder.append(s);
+                        }
+                        String value = stringBuilder.toString();// 得到了合并后的内容
+                        cell.setCellValue(value);
+
                     } else {
-                        // 一个字段不需要拆成多个单元格
-                        if (StringUtils.hasText(format)) {
-                            // 内容存在格式化先进行格式化，然后填入值
-                            String replacedStr = format.replace("$" + priority, fieldValue);// 替换字符串
-                            cell.setCellValue(replacedStr);// 设置单元格内容
+                        // 一个字段可能要拆成多个单元格
+                        JSONObject jsonObject = (JSONObject) v;
+                        final String format = jsonObject.getString(CellEnum.FORMAT.name());
+                        final Integer priority = jsonObject.getInteger(CellEnum.PRIORITY.name());
+                        final String fieldName = jsonObject.getString(CellEnum.FIELD_NAME.name());
+                        final String fieldType = jsonObject.getString(CellEnum.FIELD_TYPE.name());
+                        final String size = jsonObject.getString(CellEnum.SIZE.name());
+                        final String split = jsonObject.getString(CellEnum.SPLIT.name());
+                        String fieldValue = String.valueOf(json.get(fieldName));// 得到这个字段值
+                        final Integer width = jsonObject.getInteger(CellEnum.WIDTH.name());
+
+                        if (width > 1) {
+                            // 一个字段需要拆分成多个单元格
+                            if (StringUtils.hasText(split)) {
+                                // 有拆分词
+                                final String[] splitArray = fieldValue.split(split);// 先拆分字段
+                                if (StringUtils.hasText(format)) {
+                                    // 有格式化模板
+                                    final String[] formatStr = format.split(split);// 拆分后的格式化内容
+                                    for (int j = 0; j < width; j++) {
+                                        cell = row[0].getCell(titleIndex + j);
+                                        if (cell == null) {
+                                            cell = row[0].createCell(titleIndex + j);// 得到单元格
+                                        }
+                                        String formattedStr = formatStr[j].replace("$" + j, splitArray[j]);// 替换字符串
+                                        cell.setCellStyle(cellStyle);
+                                        cell.setCellValue(formattedStr);// 将格式化后的字符串填入
+                                    }
+                                } else {
+                                    // 没有格式化模板直接填入内容
+                                    for (int j = 0; j < width; j++) {
+                                        cell = row[0].getCell(titleIndex + j);
+                                        if (cell == null) {
+                                            cell = row[0].createCell(titleIndex + j);// 得到单元格
+                                        }
+                                        String formattedStr = format.replace("$" + j, splitArray[j]);// 替换字符串
+                                        cell.setCellStyle(cellStyle);
+                                        cell.setCellValue(formattedStr);// 将格式化后的字符串填入
+                                    }
+                                }
+
+                            } else {
+                                // 没有拆分词，本身需要拆分，抛异常
+                                exception.set(new Exception(fieldName + "字段的注解上 缺少exportSplit拆分词"));
+                            }
                         } else {
-                            // 内容不需要格式化则直接填入(转换一下单位，如果没有就原样返回)
-                            final String result = castForExport(fieldValue, fieldType, size);
-                            cell.setCellValue(result);
+                            // 一个字段不需要拆成多个单元格
+                            if (StringUtils.hasText(format)) {
+                                // 内容存在格式化先进行格式化，然后填入值
+                                String replacedStr = format.replace("$" + priority, fieldValue);// 替换字符串
+                                cell.setCellValue(replacedStr);// 设置单元格内容
+                            } else {
+                                // 内容不需要格式化则直接填入(转换一下单位，如果没有就原样返回)
+                                final String result = castForExport(fieldValue, fieldType, size);
+                                cell.setCellValue(result);
+                            }
                         }
                     }
-                }
-            });
+                });
 
-            if (exception.get() != null) {
-                throw exception.get();
+                if (exception.get() != null) {
+                    throw exception.get();
+                }
             }
+            workbook.write(outputStream);
+        } else if (list == null) {
+            throw new NullPointerException("list不能为null");
+        } else {
+            throw new NullPointerException("输出流不能为空");
         }
-        workbook.write(outputStream);
-        System.out.println("高亮行显示导出完毕");
+
     }
 
     /**
@@ -359,191 +347,6 @@ public class ExcelImportExportUtils {
         JSONObject fulledExcelDescData = getImportInfoByClazz(sheet, tClass);
         // 根据所有已知信息将excel转换为JsonArray数据
         return sheetToJSONArray(fulledExcelDescData, sheet);
-    }
-
-    /**
-     * （导出）List转换为表格
-     *
-     * @param list  数据集
-     * @param sheet 待填入的excel表格
-     * @return excel工作簿
-     * @throws Exception 抛出的异常
-     */
-    private static <T> void listToExcel(List<T> list, Sheet sheet) throws Exception {
-        if (list != null && sheet != null) {
-            if (list.size() > 0) {
-                final JSONArray listArray = listToJSONArray(list);
-                // 获取导出的描述信息
-                final JSONObject exportInfo = getExportInfo(list.get(0).getClass(), sheet);
-
-                // 将list按照导出的描述信息填入Excel
-                jsonArrayToExcel(listArray, exportInfo, sheet);
-
-            } else {
-                throw new Exception("list集合没有数据");
-            }
-
-        } else if (list == null) {
-            throw new NullPointerException("list不能为空");
-        } else {
-            throw new NullPointerException("sheet不能为空");
-        }
-    }
-
-
-    /**
-     * （导出）jsonArray转换为Sheet
-     * 存在模板的情况下
-     * 将数据填充进入Excel表格
-     *
-     * @param jsonArray  数据
-     * @param exportInfo 规则
-     * @param sheet      excel表格
-     */
-    private static void jsonArrayToExcel(JSONArray jsonArray, JSONObject exportInfo, Sheet sheet) throws Exception {
-        // 得到表头信息
-        JSONObject headerInfo = getExcelHeaderDescInfo(exportInfo);
-        // 得到表的身体描述信息
-        JSONObject titleInfo = getExcelBodyDescInfo(exportInfo);
-        // 从表头信息得到表头的高度
-        final Integer height = getTableHeight(headerInfo);
-        // 一行一行填充
-        for (int i = 0; i < jsonArray.size(); i++) {
-            int rowNum = height + i;
-            final Row[] row = {sheet.getRow(rowNum)};// 创建一行数据
-            final JSONObject json = jsonArray.getJSONObject(i);
-            AtomicReference<Exception> exception = new AtomicReference<>();
-            // 遍历表身体信息
-            titleInfo.forEach((titleIdx, v) -> {
-                if (row[0] == null) {
-                    row[0] = sheet.createRow(rowNum);
-                }
-                // 标题 索引
-                int titleIndex = Integer.parseInt(titleIdx);
-                if (titleIndex < 0) {
-                    return;
-                }
-                // 给这个 index单元格 填入 value
-                Cell cell = row[0].getCell(titleIndex);// 得到单元格
-                if (cell == null) {
-                    cell = row[0].createCell(titleIndex);
-                    Workbook wb = sheet.getWorkbook();
-                    Font font = sheet.getWorkbook().createFont();
-                    font.setFontName("微软雅黑");
-                    font.setFontHeightInPoints((short) 11);//设置字体大小
-                    CellStyle cellStyle = wb.createCellStyle();
-                    cellStyle.setLocked(true);
-                    cellStyle.setFont(font);
-                    cellStyle.setAlignment(HorizontalAlignment.CENTER);
-                    cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-                    cellStyle.setFillForegroundColor((short) 12);
-                    cell.setCellStyle(cellStyle);
-                }
-
-                if (v instanceof JSONArray) {
-                    // 多个字段合并成一个单元格内容
-                    JSONArray array = (JSONArray) v;
-                    String[] linkedFormatString = new String[array.size()];
-                    final AtomicInteger atomicInteger = new AtomicInteger(0);
-                    final Object[] objects = array.toArray();
-                    for (Object obj : objects) {
-                        // 处理每一个字段
-                        JSONObject fieldDescData = (JSONObject) obj;
-                        // 得到转换后的内容
-                        final String resultValue = getValueByFieldInfo(json, fieldDescData);
-                        linkedFormatString[atomicInteger.getAndIncrement()] = resultValue;// 存入该位置
-                    }
-
-                    final StringBuilder stringBuilder = new StringBuilder();
-                    for (String s : linkedFormatString) {
-                        stringBuilder.append(s);
-                    }
-                    String value = stringBuilder.toString();// 得到了合并后的内容
-
-                    cell.setCellValue(value);
-
-                } else {
-                    // 一个字段可能要拆成多个单元格
-                    JSONObject jsonObject = (JSONObject) v;
-                    final String format = jsonObject.getString(CellEnum.FORMAT.name());
-                    final Integer priority = jsonObject.getInteger(CellEnum.PRIORITY.name());
-                    final String fieldName = jsonObject.getString(CellEnum.FIELD_NAME.name());
-                    final String fieldType = jsonObject.getString(CellEnum.FIELD_TYPE.name());
-                    final String size = jsonObject.getString(CellEnum.SIZE.name());
-                    final String split = jsonObject.getString(CellEnum.SPLIT.name());
-                    String fieldValue = String.valueOf(json.get(fieldName));// 得到这个字段值
-                    final Integer width = jsonObject.getInteger(CellEnum.WIDTH.name());
-
-                    if (width > 1) {
-                        // 一个字段需要拆分成多个单元格
-                        if (StringUtils.hasText(split)) {
-                            // 有拆分词
-                            final String[] splitArray = fieldValue.split(split);// 先拆分字段
-                            if (StringUtils.hasText(format)) {
-                                // 有格式化模板
-                                final String[] formatStr = format.split(split);// 拆分后的格式化内容
-                                for (int j = 0; j < width; j++) {
-                                    cell = row[0].getCell(titleIndex + j);
-                                    if (cell == null) {
-                                        cell = row[0].createCell(titleIndex + j);// 得到单元格
-                                    }
-                                    String formattedStr = formatStr[j].replace("$" + j, splitArray[j]);// 替换字符串
-                                    cell.setCellValue(formattedStr);// 将格式化后的字符串填入
-                                }
-                            } else {
-                                // 没有格式化模板直接填入内容
-                                for (int j = 0; j < width; j++) {
-                                    cell = row[0].getCell(titleIndex + j);
-                                    if (cell == null) {
-                                        cell = row[0].createCell(titleIndex + j);// 得到单元格
-                                    }
-                                    String formattedStr = format.replace("$" + j, splitArray[j]);// 替换字符串
-                                    cell.setCellValue(formattedStr);// 将格式化后的字符串填入
-                                }
-                            }
-
-                        } else {
-                            // 没有拆分词，本身需要拆分，抛异常
-                            exception.set(new Exception(fieldName + "字段的注解上 缺少exportSplit拆分词"));
-                        }
-                    } else {
-                        // 一个字段不需要拆成多个单元格
-                        if (StringUtils.hasText(format)) {
-                            // 内容存在格式化先进行格式化，然后填入值
-                            String replacedStr = format.replace("$" + priority, fieldValue);// 替换字符串
-                            cell.setCellValue(replacedStr);// 设置单元格内容
-                        } else {
-                            // 内容不需要格式化则直接填入(转换一下单位，如果没有就原样返回)
-                            final String result = castForExport(fieldValue, fieldType, size);
-                            cell.setCellValue(result);
-                        }
-                    }
-                }
-            });
-
-            if (exception.get() != null) {
-                throw exception.get();
-            }
-        }
-    }
-
-
-    /**
-     * 高亮显示某一个标题列并且进行断言
-     */
-    private static <T> Workbook listToExcel(List<T> list, Sheet sheet, Function<T, String> function) throws Exception {
-        if (list != null && list.size() > 0 && sheet != null && function != null) {
-            // 获取导出的描述信息
-            final JSONObject exportInfo = getExportInfo(list.get(0).getClass(), sheet);
-            // 将list按照导出的描述信息填入Excel
-            jsonArrayToExcel(listToJSONArray(list), exportInfo, sheet);
-
-            return getWorkBook(exportInfo);
-        } else if (list == null) {
-            throw new NullPointerException("list不能为空");
-        } else {
-            throw new NullPointerException("sheet不能为空");
-        }
     }
 
 
@@ -1053,7 +856,7 @@ public class ExcelImportExportUtils {
                         // 是相对路径，给他转为绝对路径
                         File directory = new File("");//设定为当前文件夹
                         String currentAbsolutePath = directory.getAbsolutePath();
-                        resourcePath = currentAbsolutePath+"/" + split[1];// 得到新的绝对路径
+                        resourcePath = currentAbsolutePath + "/" + split[1];// 得到新的绝对路径
                     }
                     // 绝对路径
                     inputStream = new FileInputStream(resourcePath);

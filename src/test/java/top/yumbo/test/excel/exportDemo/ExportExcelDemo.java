@@ -22,7 +22,7 @@ public class ExportExcelDemo {
          * 得到List集合
          */
         System.out.println("=====导入季度数据======");
-        String areaQuarter = "src/test/java/top/yumbo/test/excel/2.xlsx";
+        String areaQuarter = "src/test/java/top/yumbo/test/excel/2_1.xlsx";
         final List<ExportForQuarter> quarterList = ExcelImportExportUtils.importExcel(new FileInputStream(areaQuarter), ExportForQuarter.class, "xlsx");
 
         /**
