@@ -29,7 +29,7 @@ public class ExportExcelDemo {
          * 将其导出
          */
         if (quarterList != null) {
-            quarterList.forEach(System.out::println);
+            //quarterList.forEach(System.out::println);
             // 将数据导出到本地文件,如果要导出到web暴露出去只要传入输出流即可
             /**
              * 原样式导出

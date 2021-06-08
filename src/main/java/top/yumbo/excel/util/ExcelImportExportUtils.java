@@ -26,6 +26,9 @@ import java.time.LocalTime;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.RecursiveTask;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -49,17 +52,17 @@ public class ExcelImportExportUtils {
 
 
     //表头信息
-    public enum TableEnum {
+    private enum TableEnum {
         WORK_BOOK, SHEET, TABLE_NAME, TABLE_HEADER, TABLE_HEADER_HEIGHT, RESOURCE, TYPE, TABLE_BODY, PASSWORD
     }
 
     // 单元格信息
-    public enum CellEnum {
+    private enum CellEnum {
         TITLE_NAME, FIELD_NAME, FIELD_TYPE, SIZE, PATTERN, NULLABLE, WIDTH, EXCEPTION, COL, ROW, SPLIT, PRIORITY, FORMAT
     }
 
     //样式的属性名
-    public enum CellStyleEnum {
+    private enum CellStyleEnum {
         FONT_NAME, FONT_SIZE, BG_COLOR, TEXT_ALIGN, LOCKED, HIDDEN, BOLD,
         VERTICAL_ALIGN, WRAP_TEXT, STYLES,
         FORE_COLOR, ROTATION, FILL_PATTERN, AUTO_SHRINK, TOP, BOTTOM, LEFT, RIGHT
@@ -131,8 +134,6 @@ public class ExcelImportExportUtils {
     }
 
 
-
-
     /**
      * 导出Excel,使用默认样式  （传入list 和 输出流）
      *
@@ -152,34 +153,83 @@ public class ExcelImportExportUtils {
     }
 
     /**
-     * 高亮行的方式导出
+     * 行高亮显示
+     *
+     * @param list         数据
+     * @param outputStream 导出的文件的输出流
+     * @param function     功能性函数，返回颜色值
      */
-    public static <T> void exportExcelRowHighLight(List<T> list, InputStream inputStream, String type, OutputStream outputStream, Function<T, IndexedColors> function) throws Exception {
-        if (list != null && list.size() > 0 && outputStream != null) {
-            final JSONObject exportInfo = getExportInfo(list.get(0).getClass());
-            final JSONObject titleInfo = getExcelBodyDescInfo(exportInfo);
-            final JSONArray jsonArray = listToJSONArray(list);
-            Sheet sheet;
-            Workbook workbook;
-            if (inputStream != null && StringUtils.hasText(type)) {
-                workbook = getWorkBook(inputStream, type);
-                sheet = workbook.getSheetAt(0);
-            } else {
-                workbook = getWorkBook(exportInfo);
-                sheet = getSheet(exportInfo);
-            }
-            final Integer height = getTableHeight(getExcelHeaderDescInfo(exportInfo));
+    public static <T> void exportExcelRowHighLight(List<T> list, OutputStream outputStream, Function<T, IndexedColors> function) throws Exception {
+        exportExcelRowHighLight(list, null, null, outputStream, function);
+    }
 
-            // 一行一行填充
-            for (int i = 0; i < jsonArray.size(); i++) {
-                int rowNum = height + i;
-                final Row[] row = {sheet.getRow(rowNum)};// 创建一行数据
-                final JSONObject json = jsonArray.getJSONObject(i);
+    static class ForkJoinAction<T> extends RecursiveTask<Integer> {
+
+        private int start;
+        private int end;
+        private List<T> subList;
+        private Sheet sheet;
+        private int threshold = 1000;// 默认1千以后需要拆分
+        private Function<T, IndexedColors> function;// 功能性函数
+        private JSONObject titleInfo;// 单元格标题列描述信息
+
+        /**
+         * 拆分合并递归处理
+         *
+         * @param start     起始行号
+         * @param end       结束行号
+         * @param threshold 条件因子
+         */
+        public ForkJoinAction(List<T> subList, JSONObject titleInfo, Sheet sheet, int start, int end, int threshold, Function<T, IndexedColors> function) {
+            this.subList = subList;
+            this.titleInfo = titleInfo;
+            this.start = start;
+            this.end = end;
+            this.threshold = threshold;
+            this.sheet = sheet;
+            this.function = function;
+        }
+
+
+        @Override
+        protected Integer compute() {
+            int length = end - start;
+
+            if (length <= threshold) {
+                try {
+                    return this.subListFilledSheet();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            } else {
+                int middle = (start + end) / 2;
+                int subIndex = middle - start;
+
+                List<T> subList1 = subList.subList(0, subIndex);
+                List<T> subList2 = subList.subList(subIndex, subList.size());
+                ForkJoinAction<T> left = new ForkJoinAction<>(subList1, titleInfo, sheet, start, middle, threshold, function);
+                left.fork();
+                ForkJoinAction<T> right = new ForkJoinAction<>(subList2, titleInfo, sheet, middle+1, end, threshold, function);
+                right.fork();
+                return left.join() + right.join();
+            }
+            return 0;
+        }
+
+        private int subListFilledSheet() throws Exception {
+            final int length = subList.size();
+
+            for (int i = 0; i < length; i++) {
+                int rowNum = start + i;
+                final Row[] row = {sheet.getRow(rowNum)};
+                T t = subList.get(i);
+                final JSONObject json = JSONArray.parseObject(JSONObject.toJSONString(t));
+
                 AtomicReference<Exception> exception = new AtomicReference<>();
                 // 遍历表身体信息
                 Sheet finalSheet = sheet;
-                CellStyle cellStyle = workbook.createCellStyle();
-                Font font = finalSheet.getWorkbook().createFont();
+                CellStyle cellStyle = sheet.getWorkbook().createCellStyle();
+                Font font = sheet.getWorkbook().createFont();
                 font.setFontName("微软雅黑");
                 font.setFontHeightInPoints((short) 11);//设置字体大小
                 cellStyle.setLocked(true);
@@ -191,14 +241,14 @@ public class ExcelImportExportUtils {
                 cellStyle.setAlignment(HorizontalAlignment.CENTER);
                 short index = IndexedColors.WHITE.getIndex();// 默认白色背景
                 if (function != null) {
-                    index = function.apply(list.get(i)).getIndex();
+                    index = function.apply(t).getIndex();
                 }
                 cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
                 cellStyle.setFillForegroundColor(index);// 设置颜色
+                if (row[0] == null) {
+                    row[0] = finalSheet.createRow(rowNum);// 创建一行
+                }
                 titleInfo.forEach((titleIdx, v) -> {
-                    if (row[0] == null) {
-                        row[0] = finalSheet.createRow(rowNum);
-                    }
                     // 标题 索引
                     int titleIndex = Integer.parseInt(titleIdx);
                     if (titleIndex < 0) {
@@ -298,6 +348,174 @@ public class ExcelImportExportUtils {
                     throw exception.get();
                 }
             }
+            return length;
+        }
+    }
+
+    /**
+     * 高亮行的方式导出
+     */
+    public static <T> void exportExcelRowHighLight(List<T> list, InputStream inputStream, String type, OutputStream outputStream, Function<T, IndexedColors> function) throws Exception {
+        if (list != null && list.size() > 0 && outputStream != null) {
+            final JSONObject exportInfo = getExportInfo(list.get(0).getClass());
+            final JSONObject titleInfo = getExcelBodyDescInfo(exportInfo);
+            //final JSONArray jsonArray = listToJSONArray(list);
+            Sheet sheet;
+            Workbook workbook;
+            if (inputStream != null && StringUtils.hasText(type)) {
+                workbook = getWorkBook(inputStream, type);
+                sheet = workbook.getSheetAt(0);
+            } else {
+                workbook = getWorkBook(exportInfo);
+                sheet = getSheet(exportInfo);
+            }
+            final Integer height = getTableHeight(getExcelHeaderDescInfo(exportInfo));
+
+            // 总的数据
+            final int length = list.size();
+            // 方式二。forkjoin
+            ForkJoinPool pool = new ForkJoinPool();
+            final ForkJoinAction<T> forkJoinAction = new ForkJoinAction<>(list, titleInfo, sheet, height, length + height, 6000, function);
+            final Integer count = pool.invoke(forkJoinAction);
+            System.out.println(count);
+//            // 一行一行填充
+//            for (int i = 0; i < jsonArray.size(); i++) {
+//                int rowNum = height + i;
+//                final Row[] row = {sheet.getRow(rowNum)};// 创建一行数据
+//                final JSONObject json = jsonArray.getJSONObject(i);
+//                AtomicReference<Exception> exception = new AtomicReference<>();
+//                // 遍历表身体信息
+//                Sheet finalSheet = sheet;
+//                CellStyle cellStyle = workbook.createCellStyle();
+//                Font font = workbook.createFont();
+//                font.setFontName("微软雅黑");
+//                font.setFontHeightInPoints((short) 11);//设置字体大小
+//                cellStyle.setLocked(true);
+//                cellStyle.setFont(font);
+//                cellStyle.setBorderLeft(BorderStyle.THIN);
+//                cellStyle.setBorderRight(BorderStyle.THIN);
+//                cellStyle.setBorderTop(BorderStyle.THIN);
+//                cellStyle.setBorderBottom(BorderStyle.THIN);
+//                cellStyle.setAlignment(HorizontalAlignment.CENTER);
+//                short index = IndexedColors.WHITE.getIndex();// 默认白色背景
+//                if (function != null) {
+//                    index = function.apply(list.get(i)).getIndex();
+//                }
+//                cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+//                cellStyle.setFillForegroundColor(index);// 设置颜色
+//                titleInfo.forEach((titleIdx, v) -> {
+//                    if (row[0] == null) {
+//                        row[0] = finalSheet.createRow(rowNum);
+//                    }
+//                    // 标题 索引
+//                    int titleIndex = Integer.parseInt(titleIdx);
+//                    if (titleIndex < 0) {
+//                        return;
+//                    }
+//                    // 给这个 index单元格 填入 value
+//                    Cell cell = row[0].getCell(titleIndex);// 得到单元格
+//                    if (cell == null) {
+//                        cell = row[0].createCell(titleIndex);
+//                    }
+//
+//                    cell.setCellStyle(cellStyle);
+//
+//                    if (v instanceof JSONArray) {
+//                        // 多个字段合并成一个单元格内容
+//                        JSONArray array = (JSONArray) v;
+//                        String[] linkedFormatString = new String[array.size()];
+//                        final AtomicInteger atomicInteger = new AtomicInteger(0);
+//                        final Object[] objects = array.toArray();
+//                        for (Object obj : objects) {
+//                            // 处理每一个字段
+//                            JSONObject fieldDescData = (JSONObject) obj;
+//                            // 得到转换后的内容
+//                            final String resultValue = getValueByFieldInfo(json, fieldDescData);
+//                            linkedFormatString[atomicInteger.getAndIncrement()] = resultValue;// 存入该位置
+//                        }
+//
+//                        final StringBuilder stringBuilder = new StringBuilder();
+//                        for (String s : linkedFormatString) {
+//                            stringBuilder.append(s);
+//                        }
+//                        String value = stringBuilder.toString();// 得到了合并后的内容
+//                        cell.setCellValue(value);
+//
+//                    } else {
+//                        // 一个字段可能要拆成多个单元格
+//                        JSONObject jsonObject = (JSONObject) v;
+//                        final String format = jsonObject.getString(CellEnum.FORMAT.name());
+//                        final Integer priority = jsonObject.getInteger(CellEnum.PRIORITY.name());
+//                        final String fieldName = jsonObject.getString(CellEnum.FIELD_NAME.name());
+//                        final String fieldType = jsonObject.getString(CellEnum.FIELD_TYPE.name());
+//                        final String size = jsonObject.getString(CellEnum.SIZE.name());
+//                        final String split = jsonObject.getString(CellEnum.SPLIT.name());
+//                        String fieldValue = String.valueOf(json.get(fieldName));// 得到这个字段值
+//                        final Integer width = jsonObject.getInteger(CellEnum.WIDTH.name());
+//
+//                        if (width > 1) {
+//                            // 一个字段需要拆分成多个单元格
+//                            if (StringUtils.hasText(split)) {
+//                                // 有拆分词
+//                                final String[] splitArray = fieldValue.split(split);// 先拆分字段
+//                                if (StringUtils.hasText(format)) {
+//                                    // 有格式化模板
+//                                    final String[] formatStr = format.split(split);// 拆分后的格式化内容
+//                                    for (int j = 0; j < width; j++) {
+//                                        cell = row[0].getCell(titleIndex + j);
+//                                        if (cell == null) {
+//                                            cell = row[0].createCell(titleIndex + j);// 得到单元格
+//                                        }
+//                                        String formattedStr = formatStr[j].replace("$" + j, splitArray[j]);// 替换字符串
+//                                        cell.setCellStyle(cellStyle);
+//                                        cell.setCellValue(formattedStr);// 将格式化后的字符串填入
+//                                    }
+//                                } else {
+//                                    // 没有格式化模板直接填入内容
+//                                    for (int j = 0; j < width; j++) {
+//                                        cell = row[0].getCell(titleIndex + j);
+//                                        if (cell == null) {
+//                                            cell = row[0].createCell(titleIndex + j);// 得到单元格
+//                                        }
+//                                        String formattedStr = format.replace("$" + j, splitArray[j]);// 替换字符串
+//                                        cell.setCellStyle(cellStyle);
+//                                        cell.setCellValue(formattedStr);// 将格式化后的字符串填入
+//                                    }
+//                                }
+//
+//                            } else {
+//                                // 没有拆分词，本身需要拆分，抛异常
+//                                exception.set(new Exception(fieldName + "字段的注解上 缺少exportSplit拆分词"));
+//                            }
+//                        } else {
+//                            // 一个字段不需要拆成多个单元格
+//                            if (StringUtils.hasText(format)) {
+//                                // 内容存在格式化先进行格式化，然后填入值
+//                                String replacedStr = format.replace("$" + priority, fieldValue);// 替换字符串
+//                                cell.setCellValue(replacedStr);// 设置单元格内容
+//                            } else {
+//                                // 内容不需要格式化则直接填入(转换一下单位，如果没有就原样返回)
+//                                final String result = castForExport(fieldValue, fieldType, size);
+//                                cell.setCellValue(result);
+//                            }
+//                        }
+//                    }
+//                });
+//
+//                if (exception.get() != null) {
+//                    throw exception.get();
+//                }
+//            }
+
+            while (!pool.isQuiescent()) {
+                System.out.println(pool.getQueuedSubmissionCount());
+                System.out.println(pool.getRunningThreadCount());
+            }
+            try {
+                TimeUnit.SECONDS.sleep(1);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
             workbook.write(outputStream);
         } else if (list == null) {
             throw new NullPointerException("list不能为null");
@@ -305,17 +523,6 @@ public class ExcelImportExportUtils {
             throw new NullPointerException("输出流不能为空");
         }
 
-    }
-
-    /**
-     * 行高亮显示
-     *
-     * @param list         数据
-     * @param outputStream 导出的文件的输出流
-     * @param function     功能性函数，返回颜色值
-     */
-    public static <T> void exportExcelRowHighLight(List<T> list, OutputStream outputStream, Function<T, IndexedColors> function) throws Exception {
-        exportExcelRowHighLight(list, null, null, outputStream, function);
     }
 
 
