@@ -5,7 +5,6 @@ import com.alibaba.fastjson.JSONObject;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.formula.functions.T;
 import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFColor;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -88,26 +87,6 @@ public class ExcelImportExportUtils {
     }
 
     /**
-     * 导入xlsx的文件
-     *
-     * @param inputStream 输入流
-     * @param tClass      泛型
-     */
-    public static <T> List<T> importExcelForXlsx(InputStream inputStream, Class<T> tClass) throws Exception {
-        return importExcel(inputStream, tClass, "xlsx");
-    }
-
-    /**
-     * 导入xls文件
-     *
-     * @param inputStream 输入流
-     * @param tClass      泛型
-     */
-    public static <T> List<T> importExcelForXls(InputStream inputStream, Class<T> tClass) throws Exception {
-        return importExcel(inputStream, tClass, "xls");
-    }
-
-    /**
      * 导入excel
      *
      * @param inputStream 输入流
@@ -130,6 +109,28 @@ public class ExcelImportExportUtils {
         }
         return null;
     }
+
+    /**
+     * 导入xlsx的文件
+     *
+     * @param inputStream 输入流
+     * @param tClass      泛型
+     */
+    public static <T> List<T> importExcelForXlsx(InputStream inputStream, Class<T> tClass) throws Exception {
+        return importExcel(inputStream, tClass, "xlsx");
+    }
+
+    /**
+     * 导入xls文件
+     *
+     * @param inputStream 输入流
+     * @param tClass      泛型
+     */
+    public static <T> List<T> importExcelForXls(InputStream inputStream, Class<T> tClass) throws Exception {
+        return importExcel(inputStream, tClass, "xls");
+    }
+
+
 
 
     /**
@@ -318,11 +319,11 @@ public class ExcelImportExportUtils {
     }
 
 
-    public static <T> void exportExcelRowHighLightRGBColor(List<T> list, FileOutputStream fileOutputStream, Function<T, Color> function) {
-        byte[] rgb = {new Integer(212).byteValue(), 44, new Integer(144).byteValue()};
-        final XSSFColor xssfColor = new XSSFColor(rgb, null);
-
-    }
+//    public static <T> void exportExcelRowHighLightRGBColor(List<T> list, FileOutputStream fileOutputStream, Function<T, Color> function) {
+//        byte[] rgb = {new Integer(212).byteValue(), 44, new Integer(144).byteValue()};
+//        final XSSFColor xssfColor = new XSSFColor(rgb, null);
+//
+//    }
 
     /**
      * (导入)将sheet解析成List类型的数据

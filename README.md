@@ -39,7 +39,7 @@
 <dependency>
     <groupId>top.yumbo.excel</groupId>
     <artifactId>excel-import-export</artifactId>
-    <version>1.1</version>
+    <version>1.2</version>
 </dependency>
 
 ```
@@ -105,7 +105,15 @@ public class RegionYearETLSyncResponse {
 ```
 #### 使用方式
 
-调用ExcelImportExportUtils.parseSheetToList(泛型,sheet表);即可返回List类型的数据
+调用 即可返回List类型的数据
+```java
+ExcelImportExportUtils.importExcel(参数列表)
+```
+如下是导入导出的方法
+
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20210608193614439.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3FxXzQxODEzMjA4,size_16,color_FFFFFF,t_70)
+
+
 
 例如：
 下载项目执行完整的测试代码在单元测试中的
