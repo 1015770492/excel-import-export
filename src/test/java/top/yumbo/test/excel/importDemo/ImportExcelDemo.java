@@ -2,7 +2,7 @@ package top.yumbo.test.excel.importDemo;
 
 import top.yumbo.excel.util.ExcelImportExportUtils;
 
-import java.io.*;
+import java.io.FileInputStream;
 import java.util.List;
 
 /**
@@ -14,6 +14,7 @@ public class ImportExcelDemo {
      * 将excel转换为List类型的数据 示例代码
      */
     public static void main(String[] args) throws Exception{
+
         System.out.println("=====导入年度数据======");
         String areaYear = "src/test/java/top/yumbo/test/excel/1.xlsx";
         final List<ImportForYear> yearList = ExcelImportExportUtils.importExcel(new FileInputStream(areaYear), ImportForYear.class, "xlsx");

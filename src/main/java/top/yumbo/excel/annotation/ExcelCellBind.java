@@ -30,7 +30,7 @@ public @interface ExcelCellBind {
      * 注入的异常消息，为了校验单元格内容
      * 校验失败应该返回的消息提升
      */
-    String exception() default "";
+    String exception() default "格式不正确";
 
     /**
      * 规模，对于BigDecimal类型的需要进行转换

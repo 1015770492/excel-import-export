@@ -49,7 +49,6 @@ import java.util.regex.Pattern;
 public class ExcelImportExportUtils {
 
 
-
     //表头信息
     public enum TableEnum {
         WORK_BOOK, SHEET, TABLE_NAME, TABLE_HEADER, TABLE_HEADER_HEIGHT, RESOURCE, TYPE, TABLE_BODY, PASSWORD
@@ -133,6 +132,18 @@ public class ExcelImportExportUtils {
     }
 
     /**
+     * 导出excel，在没有输入resource的情况下
+     */
+    public static <T> void exportExcel(List<T> list, InputStream inputStream, String type, OutputStream outputStream) throws Exception {
+        Workbook workbook = getWorkBook(inputStream, type);
+        final Sheet sheet = workbook.getSheetAt(0);
+        // 将数据填入到表格（默认样式）
+        listToExcel(list, sheet);
+        workbook.write(outputStream);
+        workbook.close();
+    }
+
+    /**
      * 导出Excel,使用默认样式  （传入list 和 输出流）
      *
      * @param list         待导入的数据集合
@@ -159,17 +170,22 @@ public class ExcelImportExportUtils {
 
 
     /**
-     * 行高亮显示
-     *
-     * @param list         数据
-     * @param outputStream 导出的文件的输出流
-     * @param function     功能性函数，返回颜色值
+     * 高亮行的方式导出
      */
-    public static <T> void exportExcelRowHighLight(List<T> list, OutputStream outputStream, Function<T, IndexedColors> function) throws Exception {
+    public static <T> void exportExcelRowHighLight(List<T> list, InputStream inputStream, String type, OutputStream outputStream, Function<T, IndexedColors> function) throws Exception {
+
         final JSONObject exportInfo = getExportInfo(list.get(0).getClass());
         final JSONObject titleInfo = getExcelBodyDescInfo(exportInfo);
         final JSONArray jsonArray = listToJSONArray(list);
-        final Sheet sheet = getSheet(exportInfo);
+        Sheet sheet = null;
+        Workbook workbook = null;
+        if (inputStream != null && StringUtils.hasText(type)) {
+            workbook = getWorkBook(inputStream, type);
+            sheet = workbook.getSheetAt(0);
+        } else {
+            workbook = getWorkBook(exportInfo);
+            sheet = getSheet(exportInfo);
+        }
         final Integer height = getTableHeight(getExcelHeaderDescInfo(exportInfo));
 
         // 一行一行填充
@@ -180,9 +196,10 @@ public class ExcelImportExportUtils {
             AtomicReference<Exception> exception = new AtomicReference<>();
             // 遍历表身体信息
             int finalI = i;
+            Sheet finalSheet = sheet;
             titleInfo.forEach((titleIdx, v) -> {
                 if (row[0] == null) {
-                    row[0] = sheet.createRow(rowNum);
+                    row[0] = finalSheet.createRow(rowNum);
                 }
                 // 标题 索引
                 int titleIndex = Integer.parseInt(titleIdx);
@@ -194,9 +211,9 @@ public class ExcelImportExportUtils {
                 if (cell == null) {
                     cell = row[0].createCell(titleIndex);
                 }
-                Workbook wb = sheet.getWorkbook();
+                Workbook wb = finalSheet.getWorkbook();
                 CellStyle cellStyle = wb.createCellStyle();
-                Font font = sheet.getWorkbook().createFont();
+                Font font = finalSheet.getWorkbook().createFont();
                 font.setFontName("微软雅黑");
                 font.setFontHeightInPoints((short) 11);//设置字体大小
                 cellStyle.setLocked(true);
@@ -297,11 +314,24 @@ public class ExcelImportExportUtils {
                 throw exception.get();
             }
         }
-        getWorkBook(exportInfo).write(outputStream);
+        workbook.write(outputStream);
         System.out.println("高亮行显示导出完毕");
     }
-    public static <T> void exportExcelRowHighLightRGBColor(List<T> list, FileOutputStream fileOutputStream, Function<T,Color> function) {
-        byte []rgb={new Integer(212).byteValue(),44,new Integer(144).byteValue()};
+
+    /**
+     * 行高亮显示
+     *
+     * @param list         数据
+     * @param outputStream 导出的文件的输出流
+     * @param function     功能性函数，返回颜色值
+     */
+    public static <T> void exportExcelRowHighLight(List<T> list, OutputStream outputStream, Function<T, IndexedColors> function) throws Exception {
+        exportExcelRowHighLight(list, null, null, outputStream, function);
+    }
+
+
+    public static <T> void exportExcelRowHighLightRGBColor(List<T> list, FileOutputStream fileOutputStream, Function<T, Color> function) {
+        byte[] rgb = {new Integer(212).byteValue(), 44, new Integer(144).byteValue()};
         final XSSFColor xssfColor = new XSSFColor(rgb, null);
 
     }
@@ -529,6 +559,31 @@ public class ExcelImportExportUtils {
      */
     private static Workbook getWorkBook(JSONObject fulledDescInfo) {
         return fulledDescInfo.getObject(TableEnum.WORK_BOOK.name(), Workbook.class);
+    }
+
+    /**
+     * 根据输入流和type返回工作簿
+     */
+    private static Workbook getWorkBook(InputStream inputStream, String type) throws IllegalArgumentException, IOException {
+        if (inputStream != null) {
+            if ("xls".equals(type)) {
+                return new HSSFWorkbook(inputStream);
+            } else if ("xlsx".equals(type)) {
+                return new XSSFWorkbook(inputStream);
+            } else {
+                throw new IllegalArgumentException("type请传入xls或xlsx。输入的type=" + type);
+            }
+        }
+
+        throw new NullPointerException("输入流不能为空，无法创建workbook");
+    }
+
+    /**
+     * 根据输入流和type返回sheet
+     */
+    private static Sheet getSheet(InputStream inputStream, String type) throws IllegalArgumentException, IOException {
+        final Workbook workBook = getWorkBook(inputStream, type);
+        return workBook.getSheetAt(0);
     }
 
     /**
@@ -992,12 +1047,13 @@ public class ExcelImportExportUtils {
                 } else {
                     final String[] split = resourcePath.split("://");
                     if (split[1].startsWith("/")) {
+                        // 绝对路径，直接使用
+                        resourcePath = split[1];
+                    } else {
                         // 是相对路径，给他转为绝对路径
                         File directory = new File("");//设定为当前文件夹
                         String currentAbsolutePath = directory.getAbsolutePath();
-                        resourcePath = currentAbsolutePath + split[1];// 得到新的绝对路径
-                    } else {
-                        resourcePath = split[1];
+                        resourcePath = currentAbsolutePath+"/" + split[1];// 得到新的绝对路径
                     }
                     // 绝对路径
                     inputStream = new FileInputStream(resourcePath);

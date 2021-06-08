@@ -53,10 +53,10 @@ public class ExportExcelDemo {
                             return IndexedColors.WHITE;
                         }
                     });
-            ExcelImportExportUtils.exportExcelRowHighLightRGBColor(quarterList, new FileOutputStream("D:/季度数据-自定义颜色高亮行导出.xlsx"),
-                    (t) -> {
-                        return null;
-                    });
+//            ExcelImportExportUtils.exportExcelRowHighLightRGBColor(quarterList, new FileOutputStream("D:/季度数据-自定义颜色高亮行导出.xlsx"),
+//                    (t) -> {
+//                        return null;
+//                    });
         }
         /**
          * 行高亮并且符合条件的单元格高亮

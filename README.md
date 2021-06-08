@@ -1,4 +1,33 @@
+## excel-import-export能做的事情
+
+1. 导入（复杂表单的导入，包括合并单元格的情况下也能进行导入，自带单位转换，通过设置size实现）
+2. 导出（复杂表格的导出，包括一个字段多个单元格内容等情况的导出，并且实现高亮提示）
+
+预计新增内容：
+
+1. 字典样式会新增@MapEntry注解注入key，value字典数据（会在导入、导出自动转换字段和excel表格之间的数据）
+2. （高亮行显示的前提下 或 默认样式下）部分单元格的字体，单元格样式的调整通过字段上注入@ExcelCellStyle，支持重复注解，后期使用java8的函数式接口返回这个字段具体使用那个样式。
+
+***
+
+关于注解具体功能，查看内部注释即可。
+
+特别提醒：表头注解resource可以是http协议和https协议的excel模板文件，对于就版本的xls格式还需要注入type="xls"才可，否则因为兼容会报错。如果想要使用的是本地的文件作为模板也可以以path://开头，绝对路径则以 / 开头，相对路径直接文件夹开头。
+
+
+
+导入功能不需要resource因为导入本身就会传一个excel，本身就是模板
+
+导出功能：导出功能如果不通过注解方式提供resource，也可以用输入流的方式传入模板（需要传入是xls还是xlsx）
+
+
+
+***
+
+
+
 ## Excel表格转换工具包
+
 ### 用到的依赖：fastjson、poi-tl、lombok、spring-bean（只用到了字符串工具）
 ## 引入依赖
 
@@ -21,8 +50,8 @@
 
 通过注解和工具类将，excel的数据并转换为List记录（后续数据库操作可以直接用MybatisPlus的批量插入即可）
 
-导入示例在 top.yumbo.test.excel.importDemo.ImportExcelDemo 类的main方法
-1.xlsx是测试用的表格
+导入示例在 [top.yumbo.test.excel.importDemo.ImportExcelDemo](https://github.com/1015770492/excel-import-export/blob/master/src/test/java/top/yumbo/test/excel/importDemo/ImportExcelDemo.java) 类的main方法
+1.xlsx 是测试用的表格
 以下面的这张表为例：
 
 <img src="https://img-blog.csdnimg.cn/20210523215535878.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3FxXzQxODEzMjA4,size_16,color_FFFFFF,t_70"/>
@@ -30,16 +59,19 @@
 ## 通用的注解使用说明
 
 ### 第一步构建好实体在实体上加注解
-#### 类注解，描述表头信息，表头高，表格的名称，excel模板的资源文件`@ExcelTableHeaderAnnotation(height = 4,tableName = "区域年度数据")`
+#### 类注解，描述表头信息，表头高，表格的名称，excel模板的资源文件`@ExcelTableHeader(height = 4,tableName = "区域年度数据")`
 height：以上图为例第5行才是我们需要导入的数据，表头也就是4行，这里的height就填4（excel是从1开始的，也就是标题是1、2、3、4这几行）
 tableName：表示表格的名称如下图
 <img src="https://img-blog.csdnimg.cn/20210523220150698.png"/>
 
 #### 字段注解，与那个标题进行绑定，例如与标题为 "地区" 单元格绑定，表示这个字段的数据来自这个标题下 
-`@ExcelCellBindAnnotation(title = "地区",width = 2,exception = "地区不存在")`
+`@ExcelCellBind(title = "地区",width = 2,exception = "地区不存在")`
 title：表是单元格属性列的标题
 width：表示横向合并了多少个单元格
 exception：自定义的异常消息
+
+***
+
 ## 一、excel导入
 #### 导入情景一、一个字段的数据由多个单元格合并而来
 通过标题确定了这个字段和表格的下标index绑定，总共用width个单元格，作用就是将这几个单元格内容合并后赋值给该字段。
@@ -53,16 +85,16 @@ exception：自定义的异常消息
 #### 注解示例：单元测试中也有注解好的实体类，没有加注解的字段就不做处理
 ```java
 @Data
-@ExcelTableHeaderAnnotation(height = 4,tableName = "区域年度数据")// 表头占4行
+@ExcelTableHeader(height = 4,tableName = "区域年度数据")// 表头占4行
 public class RegionYearETLSyncResponse {
 
-    @ExcelCellBindAnnotation(title = "地区",width = 2,exception = "地区不存在")
+    @ExcelCellBind(title = "地区",width = 2,exception = "地区不存在")
     private String regionCode;
 
     /**
      * 年份
      */
-    @ExcelCellBindAnnotation(title = "年份",exception = "年份格式不正确")
+    @ExcelCellBind(title = "年份",exception = "年份格式不正确")
     private Integer year;
     /**
      * 对于不想返回的则不加注解即可,或者title为 ""
@@ -121,41 +153,95 @@ $0表示被替换的第一个拆分出来的词例如"贵阳市",这里意味着
 
 
 ```java
+/**
+ * @author jinhua
+ * @date 2021/5/28 14:28
+ */
 @Data
-@ExcelTableHeaderAnnotation(height = 4, tableName = "区域季度数据")// 表头占4行
-public class ExcelExportTemplateForQuarter {
+@ExcelTableHeader(height = 表高度int型, tableName = "表格名称", resource = "xls或者xlsx模板文件的类型",type="默认xlsx，对于xls文件填入xls（excel本身的版本兼容问题）")
+// 表头占4行，使用了相对路径
+public class ExportForQuarter {
 
     /**
      * 年份
      */
-    @ExcelCellBindAnnotation(title = "时间", exportFormat = "$0年")
+    @ExcelCellBind(title = "时间", importPattern = "([0-9]{4})年", exportFormat = "$0年")
+    @ExcelCellStyle(id="1",表格的样式1,字体以及单元格样式的设置，具体看注解内部的功能)
+    @ExcelCellStyle(id="2",表格的样式2，可以重复注解，为了实现部分样式的调整)
     private Integer year;
 
     /**
      * 季度，填写1到4的数字
+     * 导入用到的则用importXXX命名，导出用exportXXX命名，其他则是通用的配置
      */
-    @ExcelCellBindAnnotation(title = "时间", exportFormat = "第$1季", exportPriority = 1)
+    @ExcelCellBind(title = "时间", importPattern = "([1-4]{1})季", exportFormat = "第$1季", exportPriority = 1)
+    @ExcelCellStyle
     private Integer quarter;
 
     /**
      * 地区代码，存储最末一级的地区代码就可以
      */
-    @ExcelCellBindAnnotation(title = "地区", width = 2,exportSplit = ",", exportFormat = "$0,$1")
+    @ExcelCellBind(title = "地区", width = 2, exportSplit = ",", exportFormat = "$0,$1")
+    @ExcelCellStyle(可以不加该注解，因为有默)
     private String regionCode;
 
     /**
      * 违约主体家数
      */
-    @ExcelCellBindAnnotation(title = "违约主体家数", exception = "数值格式不正确")
+    @ExcelCellBind(title = "违约主体家数", exception = "默认异常：格式不正确，可以自定义异常提示")
     private Integer breachNumber;
 
     /**
-     * 合计违约规模，单位亿
+     * 合计违约规模
      */
-    @ExcelCellBindAnnotation(title = "合计违约规模",size = BigDecimalUtils.ONE_HUNDRED_MILLION_STRING,exception = ExceptionMsg.INCORRECT_FORMAT_EXCEPTION)
+    @ExcelCellBind(title = "合计违约规模", size = "100000000")
     private BigDecimal breachTotalScale;
 
+    /**
+     * 风险性质 字典1260
+     */
+    @ExcelCellBind(title = "风险性质")
+    private String riskNature;
+
+    /**
+     * 风险品种 字典1261
+     */
+    @ExcelCellBind(title = "风险品种")
+    private String riskVarieties;
+
+    /**
+     * 区域偿债统筹管理能力 是否字典1022
+     */
+    @ExcelCellBind(title = "区域偿债统筹管理能力")
+    private String regionDebtManage;
+
+    /**
+     * 区域内私募可转债历史信用记录 是否字典1022
+     */
+    @ExcelCellBind(title = "区域内私募可转债历史信用记录")
+    private String calBondsHistoryCredit;
+
+    /**
+     * 还款可协调性 强弱字典1259
+     */
+    @ExcelCellBind(title = "还款可协调性")
+    private String repayCoordinated;
+
+    /**
+     * 业务合作可协调性 强弱字典1259
+     */
+    @ExcelCellBind(title = "业务合作可协调性")
+    private String cooperationCoordinated;
+
+    /**
+     * 数财通系统部署情况 是否字典1022
+     */
+    @ExcelCellBind(title = "数财通系统部署情况")
+    private String sctDeployStatus;
+
+
 }
+
 ```
 
 #### 导出成功的结果如下

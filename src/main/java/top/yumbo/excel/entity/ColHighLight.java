@@ -14,5 +14,6 @@ import java.util.function.Predicate;
 @Builder
 public class ColHighLight <T,R>{
     private SerializableFunction<T,R> function;
+
     private Predicate<T> predicate;
 }
