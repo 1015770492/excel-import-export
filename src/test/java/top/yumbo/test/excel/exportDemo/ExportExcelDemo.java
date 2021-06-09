@@ -7,9 +7,11 @@ import top.yumbo.excel.util.ExcelImportExportUtils;
 
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 
 /**
  * @author jinhua
@@ -31,28 +33,21 @@ public class ExportExcelDemo {
         if (quarterList != null) {
             //quarterList.forEach(System.out::println);
             // 将数据导出到本地文件,如果要导出到web暴露出去只要传入输出流即可
-            /**
-             * 原样式导出
-             */
-            ExcelImportExportUtils.exportExcel(quarterList, new FileOutputStream("D:/季度数据-原样式导出.xlsx"));
-            /**
-             * 高亮行
-             */
-            ExcelImportExportUtils.exportExcelRowHighLight(quarterList,
-                    new FileOutputStream("D:/季度数据-高亮行导出.xlsx"),
-                    (t) -> {
-                        if (t.getQuarter() == 1) {
-                            return IndexedColors.YELLOW;
-                        } else if (t.getQuarter() == 2) {
-                            return IndexedColors.ROSE;
-                        } else if (t.getQuarter() == 3) {
-                            return IndexedColors.SKY_BLUE;
-                        } else if (t.getQuarter() == 4) {
-                            return IndexedColors.GREY_25_PERCENT;
-                        } else {
-                            return IndexedColors.WHITE;
-                        }
-                    });
+            List<ExportForQuarter> list=new ArrayList<>();
+            for (int i = 0; i < 2; i++) {
+                list.addAll(quarterList);
+            }
+            System.out.println("总数据量："+list.size()+"条记录");
+            IntStream.of(10000, 8000, 6000, 4000).forEach(threshold -> {
+                System.out.println("threshold=" + threshold);
+                try {
+                    exportDefault(list, threshold);
+                    exportHighLight(list, threshold);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
+
 //            ExcelImportExportUtils.exportExcelRowHighLightRGBColor(quarterList, new FileOutputStream("D:/季度数据-自定义颜色高亮行导出.xlsx"),
 //                    (t) -> {
 //                        return null;
@@ -64,6 +59,41 @@ public class ExportExcelDemo {
 //        rowHighLight(quarterList);
 //        rowHighLight(quarterList);
 
+    }
+
+    private static void exportHighLight(List<ExportForQuarter> quarterList, int threshold) throws Exception {
+        /**
+         * 高亮行
+         */
+        final long start = System.currentTimeMillis();
+        ExcelImportExportUtils.exportExcelRowHighLight(quarterList,
+                new FileOutputStream("D:/季度数据-高亮行导出.xlsx"),
+                (t) -> {
+                    if (t.getQuarter() == 1) {
+                        return IndexedColors.YELLOW;
+                    } else if (t.getQuarter() == 2) {
+                        return IndexedColors.ROSE;
+                    } else if (t.getQuarter() == 3) {
+                        return IndexedColors.SKY_BLUE;
+                    } else if (t.getQuarter() == 4) {
+                        return IndexedColors.GREY_25_PERCENT;
+                    } else {
+                        return IndexedColors.WHITE;
+                    }
+                }, threshold);
+        final long end = System.currentTimeMillis();
+        System.out.println("高亮行总共用了" + (end - start) + "毫秒");
+    }
+
+    private static int exportDefault(List<ExportForQuarter> quarterList, int threshold) throws Exception {
+        /**
+         * 原样式导出
+         */
+        final long start1 = System.currentTimeMillis();
+        ExcelImportExportUtils.exportExcel(quarterList, new FileOutputStream("D:/季度数据-原样式导出.xlsx"), threshold);
+        final long end1 = System.currentTimeMillis();
+        System.out.println("原样式导出总共用了" + (end1 - start1) + "毫秒");
+        return threshold;
     }
 
     /**
