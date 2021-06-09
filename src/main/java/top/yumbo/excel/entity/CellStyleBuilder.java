@@ -4,7 +4,6 @@ import lombok.Builder;
 import lombok.Data;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.util.StringUtils;
 
 /**
@@ -67,7 +66,7 @@ public class CellStyleBuilder {
         if ("xls".equals(type)) {
             workbook = new HSSFWorkbook();
         } else {
-            workbook = new XSSFWorkbook();
+            workbook = new HSSFWorkbook();
         }
         return getCellStyle(workbook);
     }

@@ -1,5 +1,6 @@
 package top.yumbo.excel.util;
 
+
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
@@ -20,13 +21,13 @@ import top.yumbo.excel.entity.CellStyleBuilder;
 import java.io.*;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.RecursiveTask;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -182,11 +183,11 @@ public class ExcelImportExportUtils {
         private int start;
         private int end;
         private List<T> subList;
-        private Sheet sheet;
+        private final Sheet sheet;
         private int threshold = 1000;// 默认1千以后需要拆分
         private Function<T, IndexedColors> function;// 功能性函数
         private JSONObject titleInfo;// 单元格标题列描述信息
-        final static ThreadLocal<HashMap<Integer, CellStyle>> cellStyleThreadLocal = new ThreadLocal<>();
+        final static ThreadLocal<HashMap<String, CellStyle>> cellStyleThreadLocal = new ThreadLocal<>();
 
         /**
          * @param subList   数据集合
@@ -233,6 +234,9 @@ public class ExcelImportExportUtils {
             return 0;
         }
 
+        /**
+         * 将集合数据填入表格
+         */
         private int subListFilledSheet() throws Exception {
             final int length = subList.size();
             //System.out.println("长度是:" + length + ",行号范围长度:" + (end - start + 1) + "。起始行号" + start + "，结束行号" + end);
@@ -243,7 +247,6 @@ public class ExcelImportExportUtils {
             for (int i = 0; i < length; i++) {
                 int rowNum = start + i;
                 Row row = sheet.getRow(rowNum);
-//                if (row.getRowNum()>1048575)
                 synchronized (sheet) {
                     if (sheet.getRow(rowNum) == null) {
                         row = sheet.createRow(rowNum);// 创建一行
@@ -253,11 +256,12 @@ public class ExcelImportExportUtils {
                 AtomicReference<Exception> exception = new AtomicReference<>();
                 // 遍历表身体信息
                 T t = subList.get(i);
-                final JSONObject json = JSONArray.parseObject(JSONObject.toJSONString(t));
                 if (function != null) {
                     index = function.apply(t).getIndex();
                     cellStyle = getCellStyle(index);
                 }
+
+                final JSONObject json = JSONObject.parseObject(JSONObject.toJSONString(t));
                 // 可以并行处理单元格
                 jsonToOneRow(row, json, exception, cellStyle);
 
@@ -265,42 +269,49 @@ public class ExcelImportExportUtils {
                     throw exception.get();
                 }
             }
-            final Thread thread = Thread.currentThread();
+            //final Thread thread = Thread.currentThread();
+            cellStyleThreadLocal.remove();
             return length;
         }
 
         private CellStyle getCellStyle(short index) {
-            final Map<Integer, CellStyle> cellStyleMap = cellStyleThreadLocal.get();
+            final HashMap<String, CellStyle> cellStyleMap = cellStyleThreadLocal.get();
             if (cellStyleMap != null) {
-                final CellStyle cellStyle2 = cellStyleMap.get(index);
+                final CellStyle cellStyle2 = cellStyleMap.get(String.valueOf(index));
                 if (cellStyle2 != null) {
                     return cellStyle2;// 存在样式直接返回
                 }
-            }else {
-                cellStyleThreadLocal.set(new HashMap<>());
+            } else {
+                cellStyleThreadLocal.set(new HashMap<String, CellStyle>());
             }
-            CellStyle cellStyle = sheet.getWorkbook().createCellStyle();
-            Font font = sheet.getWorkbook().createFont();
-            font.setFontName("微软雅黑");
-            font.setFontHeightInPoints((short) 11);//设置字体大小
-            cellStyle.setFont(font);
-            cellStyle.setBorderLeft(BorderStyle.THIN);
-            cellStyle.setBorderRight(BorderStyle.THIN);
-            cellStyle.setBorderTop(BorderStyle.THIN);
-            cellStyle.setBorderBottom(BorderStyle.THIN);
-            cellStyle.setAlignment(HorizontalAlignment.CENTER);
-            cellStyle.setFillForegroundColor(index);// 设置颜色
-            cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-            final HashMap<Integer, CellStyle> styleMap = cellStyleThreadLocal.get();
-            styleMap.put((int)index,cellStyle);
+            final Workbook workbook = sheet.getWorkbook();
+            final HashMap<String, CellStyle> styleMap = cellStyleThreadLocal.get();
+            synchronized (workbook) {
+                CellStyle cellStyle = workbook.createCellStyle();
+                Font font = workbook.createFont();
+                font.setFontName("微软雅黑");
+                font.setFontHeightInPoints((short) 11);//设置字体大小
+                cellStyle.setFont(font);
+                cellStyle.setBorderLeft(BorderStyle.THIN);
+                cellStyle.setBorderRight(BorderStyle.THIN);
+                cellStyle.setBorderTop(BorderStyle.THIN);
+                cellStyle.setBorderBottom(BorderStyle.THIN);
+                cellStyle.setAlignment(HorizontalAlignment.CENTER);
+                cellStyle.setFillForegroundColor(index);// 设置颜色
+                cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+                styleMap.put(String.valueOf(index), cellStyle);
+            }
             cellStyleThreadLocal.set(styleMap);
-            return cellStyle;
+            return styleMap.get(String.valueOf(index));
+
         }
 
         private void jsonToOneRow(Row row, JSONObject json, AtomicReference<Exception> exception, CellStyle cellStyle) {
-            titleInfo.forEach((titleIdx, v) -> {
+            for (Map.Entry<String, Object> entry : titleInfo.entrySet()) {
+                final String titleIdx = entry.getKey();
+                final Object v = entry.getValue();
                 // 标题 索引
-                int titleIndex = Integer.parseInt(titleIdx);
+                final int titleIndex = Integer.parseInt(titleIdx);
                 if (titleIndex < 0) {
                     return;
                 }
@@ -341,14 +352,14 @@ public class ExcelImportExportUtils {
                     final String fieldType = jsonObject.getString(CellEnum.FIELD_TYPE.name());
                     final String size = jsonObject.getString(CellEnum.SIZE.name());
                     final String split = jsonObject.getString(CellEnum.SPLIT.name());
-                    String fieldValue = String.valueOf(json.get(fieldName));// 得到这个字段值
+                    Object fieldValue = json.get(fieldName);// 得到这个字段值
                     final Integer width = jsonObject.getInteger(CellEnum.WIDTH.name());
 
                     if (width > 1) {
                         // 一个字段需要拆分成多个单元格
                         if (StringUtils.hasText(split)) {
-                            // 有拆分词
-                            final String[] splitArray = fieldValue.split(split);// 先拆分字段
+                            // 有拆分词,是字符串
+                            final String[] splitArray = ((String) fieldValue).split(split);// 先拆分字段
                             if (StringUtils.hasText(format)) {
                                 // 有格式化模板
                                 final String[] formatStr = format.split(split);// 拆分后的格式化内容
@@ -379,21 +390,24 @@ public class ExcelImportExportUtils {
                             exception.set(new Exception(fieldName + "字段的注解上 缺少exportSplit拆分词"));
                         }
                     } else {
+
                         // 一个字段不需要拆成多个单元格
                         if (StringUtils.hasText(format)) {
                             // 内容存在格式化先进行格式化，然后填入值
-                            String replacedStr = format.replace("$" + priority, fieldValue);// 替换字符串
+                            String replacedStr = format.replace("$" + priority, (String) fieldValue);// 替换字符串
                             cell.setCellValue(replacedStr);// 设置单元格内容
                         } else {
                             // 内容不需要格式化则直接填入(转换一下单位，如果没有就原样返回)
-                            final String result = castForExport(fieldValue, fieldType, size);
-                            cell.setCellValue(result);
+                            setCellValue(cell, fieldValue, fieldType, size);
                         }
                     }
                 }
-            });
+            }
+
         }
+
     }
+
 
     /**
      * 高亮行的方式导出
@@ -409,7 +423,6 @@ public class ExcelImportExportUtils {
         if (list != null && list.size() > 0 && outputStream != null) {
             final JSONObject exportInfo = getExportInfo(list.get(0).getClass());
             final JSONObject titleInfo = getExcelBodyDescInfo(exportInfo);
-            //final JSONArray jsonArray = listToJSONArray(list);
             Sheet sheet;
             Workbook workbook;
             if (inputStream != null && StringUtils.hasText(type)) {
@@ -421,6 +434,7 @@ public class ExcelImportExportUtils {
             }
             final Integer height = getTableHeight(getExcelHeaderDescInfo(exportInfo));
 
+            final long start = System.currentTimeMillis();
             // 总的数据
             final int length = list.size();
             // 方式二。forkjoin
@@ -428,11 +442,18 @@ public class ExcelImportExportUtils {
             if (threshold <= 0) {
                 threshold = 1000;
             }
-            final ForkJoinAction<T> forkJoinAction = new ForkJoinAction<>(list, titleInfo, sheet, height, length + height - 1, threshold, function);
-            final Integer count = pool.invoke(forkJoinAction);
-            //System.out.println(count);
+            if (length > 1000000) {
 
+            }
+            // 分任务
+            final ForkJoinAction<T> forkJoinAction = new ForkJoinAction<>(list, titleInfo, sheet, height, length + height - 1, threshold, function);
+            pool.invoke(forkJoinAction);// 执行任务
+
+            final long end = System.currentTimeMillis();
+
+            System.out.println("转换耗时" + (end - start) + "毫秒");
             workbook.write(outputStream);
+            workbook.close();
         } else if (list == null) {
             throw new NullPointerException("list不能为null");
         } else {
@@ -552,42 +573,6 @@ public class ExcelImportExportUtils {
 
 
     /**
-     * 得到类型处理后的值字符串
-     *
-     * @param inputValue 输入的值
-     * @param type       应该的类型
-     * @param size       规模
-     */
-    private static String castForExport(String inputValue, String type, String size) {
-        String result = "";
-        if (!StringUtils.hasText(inputValue)) {
-            return result;
-        }
-        final Class<?> fieldType = clazzMap.get(type);
-        if (fieldType == String.class || fieldType == Character.class) {
-            // 字符串或字符类型
-            return inputValue;
-        } else if (fieldType == Date.class || fieldType == LocalDate.class
-                || fieldType == LocalDateTime.class || fieldType == LocalTime.class) {
-            // 时间类型的
-
-        } else {
-            // 是数值类型的进行转换
-            BigDecimal bigDecimal = new BigDecimal(inputValue);
-            final BigDecimal resultBigDecimal = BigDecimalUtils.bigDecimalDivBigDecimalFormatTwo(bigDecimal, new BigDecimal(size));
-            if (fieldType == BigDecimal.class || fieldType == Double.class || fieldType == Float.class) {
-                // 小数类型
-                result = resultBigDecimal.toString();
-            } else if (fieldType == Integer.class || fieldType == Long.class || fieldType == Short.class) {
-                // 整数类型
-                result = String.valueOf(resultBigDecimal.longValue());
-            }
-        }
-        return result;
-    }
-
-
-    /**
      * 转换为excel数据转换为 JSONArray
      */
     private static JSONArray sheetToJSONArray(JSONObject allExcelDescData, Sheet sheet) throws Exception {
@@ -629,7 +614,7 @@ public class ExcelImportExportUtils {
                 message = positionMessage + exception;
 
                 // 获取合并的单元格值（合并后的结果，逗号分隔）
-                String value = getMergeString(row, index, width);
+                String value = getMergeString(row, index, width, fieldType);
 
                 // 获取正则表达式，如果有正则，则进行正则截取value（相当于从单元格中取部分）
                 String pattern = rowDesc.getString(CellEnum.PATTERN.name());
@@ -734,7 +719,7 @@ public class ExcelImportExportUtils {
                 // 遍历这行所有单元格，然后得到表头进行比较找到标题和注解上的titleName相同的单元格
                 row.forEach(cell -> {
                     // 得到单元格内容（统一为字符串类型）
-                    String title = getStringCellValue(cell);
+                    String title = getStringCellValue(cell, String.class.getTypeName());
 
                     JSONObject cd = (JSONObject) cellDesc;
                     // 如果标题相同找到了这单元格，获取单元格下标存入
@@ -1084,7 +1069,7 @@ public class ExcelImportExportUtils {
             Row row = sheet.getRow(i);// 得到第i行数据（在表头内）
             // 遍历这行所有单元格，然后得到表头进行比较找到标题和注解上的titleName相同的单元格
             for (Cell cell : row) {// 得到单元格内容（统一为字符串类型）
-                String titleName = getStringCellValue(cell);
+                String titleName = getStringCellValue(cell, String.class.getTypeName());
                 // 如果标题相同找到了这单元格，获取单元格下标存入
                 if (title.equals(titleName)) {
                     return cell.getColumnIndex();
@@ -1096,13 +1081,35 @@ public class ExcelImportExportUtils {
 
     /**
      * 单元格内容统一返回字符串类型的数据
+     *
+     * @param cell 单元格
+     * @param type 字段类型
      */
-    private static String getStringCellValue(Cell cell) {
+    private static String getStringCellValue(Cell cell, String type) {
         String str = "";
         if (cell.getCellType() == CellType.STRING) {
             str = cell.getStringCellValue();
         } else if (cell.getCellType() == CellType.NUMERIC) {
-            str += cell.getNumericCellValue();
+            if (clazzMap.get(type) == Date.class) {
+                SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                final String format = formatter.format(cell.getDateCellValue());
+                str += format;
+            } else if (clazzMap.get(type) == LocalDateTime.class) {
+                DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+                String format = dtf.format(cell.getLocalDateTimeCellValue());
+                str += format;
+            } else if (clazzMap.get(type) == LocalDate.class) {
+                DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+                String format = dtf.format(cell.getLocalDateTimeCellValue());
+                str += format;
+            } else if (clazzMap.get(type) == LocalTime.class) {
+                DateTimeFormatter dtf = DateTimeFormatter.ofPattern("HH:mm:ss");
+                String format = dtf.format(cell.getLocalDateTimeCellValue());
+                str += format;
+            } else {
+                // 数值类型的
+                str += cell.getNumericCellValue();
+            }
         } else if (cell.getCellType() == CellType.BOOLEAN) {
             str += cell.getBooleanCellValue();
         } else if (cell.getCellType() == CellType.BLANK) {
@@ -1131,7 +1138,7 @@ public class ExcelImportExportUtils {
      * @param width 索引位置+width确定取那几列
      * @return 返回合并单元格的内容（单个的则传width=1即可）
      */
-    private static String getMergeString(Row row, Integer index, Integer width) {
+    private static String getMergeString(Row row, Integer index, Integer width, String type) {
         // 合并单元格的处理方式 开始
         StringBuilder cellValue = new StringBuilder();
         for (int j = 0; j < width; j++) {
@@ -1140,7 +1147,7 @@ public class ExcelImportExportUtils {
             Cell cell = row.getCell(index + j);
             // 返回字符串类型的数据
             if (cell != null) {
-                str = getStringCellValue(cell);
+                str = getStringCellValue(cell, type);
                 if (str == null) {
                     str = "";
                 }
@@ -1198,6 +1205,45 @@ public class ExcelImportExportUtils {
     }
 
     /**
+     * 得到类型处理后的值字符串
+     *
+     * @param inputValue 输入的值
+     * @param type       应该的类型
+     * @param size       规模
+     */
+    private static void setCellValue(Cell cell, Object inputValue, String type, String size) {
+
+        final Class<?> fieldType = clazzMap.get(type);
+        if (fieldType == BigDecimal.class || fieldType == Double.class || fieldType == Float.class
+                || fieldType == Long.class || fieldType == Integer.class || fieldType == Short.class) {
+
+            // 数值类型的统一用double（因为cell的api只提供了double）
+            BigDecimal bigDecimal = new BigDecimal(String.valueOf(inputValue));
+            final BigDecimal resultBigDecimal = BigDecimalUtils.bigDecimalDivBigDecimalFormatTwo(bigDecimal, new BigDecimal(size));
+            cell.setCellValue(resultBigDecimal.doubleValue());
+
+        } else if (Date.class == fieldType) {
+            try {
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                cell.setCellValue(sdf.parse(inputValue.toString()));
+            } catch (ParseException p) {
+                throw new RuntimeException("Date类型的字段请加上 @JSONField(format=\"yyyy-MM-dd HH:mm:ss\")");
+            }
+        } else if (LocalDate.class == fieldType) {
+
+            cell.setCellValue(LocalDate.parse(String.valueOf(inputValue)));
+        } else if (LocalDateTime.class == fieldType) {
+            cell.setCellValue(LocalDateTime.parse(String.valueOf(inputValue)));
+        } else if (GregorianCalendar.class == fieldType) {
+            cell.setCellValue((GregorianCalendar) inputValue);
+        } else {
+            // 字符串或字符类型
+            cell.setCellValue((String) inputValue);
+        }
+    }
+
+
+    /**
      * 根据类型的字符串得到返回类型
      */
     private static Object cast(String inputValue, String aClass, String exception, String size) throws ClassCastException {
@@ -1238,6 +1284,15 @@ public class ExcelImportExportUtils {
                 obj = value.charAt(0);
             } else if (aClass == Float.class) {
                 obj = Float.parseFloat(value);
+            } else if (aClass == Date.class) {
+                obj = inputValue;
+            } else if (aClass == LocalDateTime.class) {
+                DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+                obj = LocalDateTime.parse(inputValue, dtf);
+            } else if (aClass == LocalDate.class) {
+                obj = LocalDate.parse(inputValue);
+            } else if (aClass == LocalTime.class) {
+                obj = LocalTime.parse(inputValue);
             }
         } catch (Exception e) {
             throw new ClassCastException("类型转换异常，输入的文本内容（=><=符合中间就是待转换的内容）：=>" + inputValue + "<=.位置：" + exception);

@@ -2,7 +2,6 @@ package top.yumbo.test.excel.exportDemo;
 
 import lombok.Data;
 import top.yumbo.excel.annotation.ExcelCellBind;
-import top.yumbo.excel.annotation.ExcelCellStyle;
 import top.yumbo.excel.annotation.ExcelTableHeader;
 import top.yumbo.excel.enums.ExceptionMsg;
 import top.yumbo.excel.util.BigDecimalUtils;
@@ -45,7 +44,7 @@ public class ExportForQuarter {
     /**
      * 合计违约规模
      */
-    @ExcelCellBind(title = "合计违约规模", size = BigDecimalUtils.ONE_HUNDRED_MILLION_STRING, exception = ExceptionMsg.INCORRECT_FORMAT_EXCEPTION)
+    @ExcelCellBind(title = "合计违约规模",size = BigDecimalUtils.ONE_HUNDRED_MILLION_STRING)
     private BigDecimal breachTotalScale;
 
     /**

@@ -25,39 +25,37 @@ public class ExportExcelDemo {
          */
         System.out.println("=====导入季度数据======");
         String areaQuarter = "src/test/java/top/yumbo/test/excel/2_1.xlsx";
+//        String areaQuarter = "D:/季度数据-原样式导出6000.xlsx";
+        final long start1 = System.currentTimeMillis();
         final List<ExportForQuarter> quarterList = ExcelImportExportUtils.importExcel(new FileInputStream(areaQuarter), ExportForQuarter.class, "xlsx");
+        final long end1 = System.currentTimeMillis();
+        System.out.println("数据量" + quarterList.size() + "条，导入耗时" + (end1 - start1) + "毫秒");
+
 
         /**
          * 将其导出
          */
         if (quarterList != null) {
-            //quarterList.forEach(System.out::println);
-            // 将数据导出到本地文件,如果要导出到web暴露出去只要传入输出流即可
-            List<ExportForQuarter> list=new ArrayList<>();
-            for (int i = 0; i < 2; i++) {
+            // 将数据导出到本地文件, 如果要导出到web暴露出去只要传入输出流即可
+            List<ExportForQuarter> list = new ArrayList<>();
+            for (int i = 0; i < 10; i++) {
                 list.addAll(quarterList);
             }
-            System.out.println("总数据量："+list.size()+"条记录");
-            IntStream.of(10000, 8000, 6000, 4000).forEach(threshold -> {
-                System.out.println("threshold=" + threshold);
-                try {
-                    exportDefault(list, threshold);
-                    exportHighLight(list, threshold);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            });
+            for (int i = 0; i < 3; i++) {
+                System.out.println("第" + (i + 1) + "次导出测试");
+                System.out.println("总数据量：" + list.size() + "条记录");
+                IntStream.of(2000, 4000, 6000).forEach(threshold -> {
+                    System.out.println("threshold=" + threshold);
+                    try {
+                        exportDefault(list, threshold);
+                        exportHighLight(list, threshold);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                });
+            }
 
-//            ExcelImportExportUtils.exportExcelRowHighLightRGBColor(quarterList, new FileOutputStream("D:/季度数据-自定义颜色高亮行导出.xlsx"),
-//                    (t) -> {
-//                        return null;
-//                    });
         }
-        /**
-         * 行高亮并且符合条件的单元格高亮
-         */
-//        rowHighLight(quarterList);
-//        rowHighLight(quarterList);
 
     }
 
@@ -67,7 +65,7 @@ public class ExportExcelDemo {
          */
         final long start = System.currentTimeMillis();
         ExcelImportExportUtils.exportExcelRowHighLight(quarterList,
-                new FileOutputStream("D:/季度数据-高亮行导出.xlsx"),
+                new FileOutputStream("D:/季度数据-高亮行导出" + threshold + ".xlsx"),
                 (t) -> {
                     if (t.getQuarter() == 1) {
                         return IndexedColors.YELLOW;
@@ -90,7 +88,7 @@ public class ExportExcelDemo {
          * 原样式导出
          */
         final long start1 = System.currentTimeMillis();
-        ExcelImportExportUtils.exportExcel(quarterList, new FileOutputStream("D:/季度数据-原样式导出.xlsx"), threshold);
+        ExcelImportExportUtils.exportExcel(quarterList, new FileOutputStream("D:/季度数据-原样式导出" + threshold + ".xlsx"), threshold);
         final long end1 = System.currentTimeMillis();
         System.out.println("原样式导出总共用了" + (end1 - start1) + "毫秒");
         return threshold;
