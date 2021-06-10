@@ -10,7 +10,6 @@ import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 import java.util.stream.IntStream;
 
 /**
@@ -24,10 +23,10 @@ public class ExportExcelDemo {
          * 得到List集合
          */
         System.out.println("=====导入季度数据======");
-        String areaQuarter = "src/test/java/top/yumbo/test/excel/2_1.xlsx";
+        String areaQuarter = "src/test/java/top/yumbo/test/excel/2_2.xlsx";
 //        String areaQuarter = "D:/季度数据-原样式导出6000.xlsx";
         final long start1 = System.currentTimeMillis();
-        final List<ExportForQuarter> quarterList = ExcelImportExportUtils.importExcel(new FileInputStream(areaQuarter), ExportForQuarter.class, "xlsx");
+        final List<ExportForQuarter> quarterList = ExcelImportExportUtils.importExcelForXlsx(new FileInputStream(areaQuarter), ExportForQuarter.class);
         final long end1 = System.currentTimeMillis();
         System.out.println("数据量" + quarterList.size() + "条，导入耗时" + (end1 - start1) + "毫秒");
 
@@ -67,13 +66,13 @@ public class ExportExcelDemo {
         ExcelImportExportUtils.exportExcelRowHighLight(quarterList,
                 new FileOutputStream("D:/季度数据-高亮行导出" + threshold + ".xlsx"),
                 (t) -> {
-                    if (t.getQuarter() == 1) {
+                    if (t.getW4() == 1) {
                         return IndexedColors.YELLOW;
-                    } else if (t.getQuarter() == 2) {
+                    } else if (t.getW4() == 2) {
                         return IndexedColors.ROSE;
-                    } else if (t.getQuarter() == 3) {
+                    } else if (t.getW4() == 3) {
                         return IndexedColors.SKY_BLUE;
-                    } else if (t.getQuarter() == 4) {
+                    } else if (t.getW4() == 4) {
                         return IndexedColors.GREY_25_PERCENT;
                     } else {
                         return IndexedColors.WHITE;
@@ -113,20 +112,20 @@ public class ExportExcelDemo {
         );
         // 根据逻辑得到样式的下标,
         // 例如：技术违约->黄色背景，实质违约->灰色背景，管理违约->蓝色背景
-        final Function<ExportForQuarter, Integer> functional = (one) -> {
-            if ("管理失误违约".equals(one.getRiskNature())) {
-                // 管理失误违约的用蓝色高亮
-                return 1;
-            } else if ("标准债券".equals(one.getRiskVarieties())) {
-                // 风险品种是标准债券的用黄色高亮
-                return 2;
-            } else if ("无部署".equals(one.getSctDeployStatus())) {
-                //"无部署"的用灰色高亮
-                return 0;
-            } else {
-                return 4;
-            }
-        };
+//        final Function<ExportForQuarter, Integer> functional = (one) -> {
+//            if ("管理失误违约".equals(one.getRiskNature())) {
+//                // 管理失误违约的用蓝色高亮
+//                return 1;
+//            } else if ("标准债券".equals(one.getRiskVarieties())) {
+//                // 风险品种是标准债券的用黄色高亮
+//                return 2;
+//            } else if ("无部署".equals(one.getSctDeployStatus())) {
+//                //"无部署"的用灰色高亮
+//                return 0;
+//            } else {
+//                return 4;
+//            }
+//        };
         // 符合条件的数据行将会启用
 //        ExcelImportExportUtils.rowHighLight(quarterList, cellStyleList, functional, new FileOutputStream("D:/季度数据-行高亮显示.xlsx"));
         //cellHighLight(quarterList,workbook);

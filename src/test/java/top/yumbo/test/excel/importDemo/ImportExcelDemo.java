@@ -15,13 +15,14 @@ public class ImportExcelDemo {
      */
     public static void main(String[] args) throws Exception{
 
-        System.out.println("=====导入年度数据======");
-        String areaYear = "src/test/java/top/yumbo/test/excel/1.xlsx";
-        final List<ImportForYear> yearList = ExcelImportExportUtils.importExcel(new FileInputStream(areaYear), ImportForYear.class, "xlsx");
-        yearList.forEach(System.out::println);
+//        System.out.println("=====导入年度数据======");
+//        String areaYear = "src/test/java/top/yumbo/test/excel/1.xlsx";
+//        final List<ImportForYear> yearList = ExcelImportExportUtils.importExcelForXlsx(new FileInputStream(areaYear), ImportForYear.class);
+//        yearList.forEach(System.out::println);
         System.out.println("=====导入季度数据======");
         String areaQuarter = "src/test/java/top/yumbo/test/excel/2.xlsx";
-        final List<ImportForQuarter> quarterList = ExcelImportExportUtils.importExcel(new FileInputStream(areaQuarter), ImportForQuarter.class, "xlsx");
+        final List<ImportForQuarter> quarterList = ExcelImportExportUtils.importExcel(new FileInputStream(areaQuarter),"xlsx", ImportForQuarter.class,0);
+        System.out.println("总共有"+quarterList.size()+"条记录");
         quarterList.forEach(System.out::println);
     }
 }

@@ -59,7 +59,7 @@ public class ExcelImportExportUtils {
 
     // 单元格信息
     private enum CellEnum {
-        TITLE_NAME, FIELD_NAME, FIELD_TYPE, SIZE, PATTERN, NULLABLE, WIDTH, EXCEPTION, COL, ROW, SPLIT, PRIORITY, FORMAT
+        TITLE_NAME, FIELD_NAME, FIELD_TYPE, SIZE, PATTERN, NULLABLE, WIDTH, EXCEPTION, COL, ROW, SPLIT, PRIORITY, FORMAT, MAP_ENTRIES
     }
 
     //样式的属性名
@@ -69,17 +69,6 @@ public class ExcelImportExportUtils {
         FORE_COLOR, ROTATION, FILL_PATTERN, AUTO_SHRINK, TOP, BOTTOM, LEFT, RIGHT
     }
 
-
-    /**
-     * 导入Excel数据
-     *
-     * @param workbook excel工作簿
-     * @param tClass   泛型
-     */
-    public static <T> List<T> importExcel(Workbook workbook, Class<T> tClass) throws Exception {
-        return excelToList(workbook.getSheetAt(0), tClass);
-    }
-
     /**
      * 导入excel，默认导入xlsx文件
      *
@@ -87,31 +76,67 @@ public class ExcelImportExportUtils {
      * @param tClass      泛型
      */
     public static <T> List<T> importExcel(InputStream inputStream, Class<T> tClass) throws Exception {
-        return importExcelForXlsx(inputStream, tClass);
+        return importExcel(inputStream, null, tClass, 0);
     }
 
     /**
-     * 导入excel
+     * 传入workbook不需要类型其他上面的
+     */
+    public static <T> List<T> importExcel(Workbook workbook, Class<T> tClass) throws Exception {
+        return sheetToList(workbook.getSheetAt(0), tClass, 100000);
+    }
+
+
+    /**
+     * 导入Excel数据
+     *
+     * @param workbook excel工作簿
+     * @param tClass   泛型
+     */
+    public static <T> List<T> importExcel(Workbook workbook, Class<T> tClass, String type) throws Exception {
+        if ("xls".equals(type)) {
+            return importExcelForXls(workbook, tClass);
+        } else {
+            return importExcelForXlsx(workbook, tClass);
+        }
+    }
+
+
+    /**
+     * 导入excel默认xlsx
      *
      * @param inputStream 输入流
      * @param type        类型：xls、xlsx
      * @param tClass      模板数据
      * @return List类型的实体
      */
-    public static <T> List<T> importExcel(InputStream inputStream, Class<T> tClass, String type) throws Exception {
-        if (type == null) {
-            type = "xlsx";
-        }
-        Workbook workbook = null;
+    public static <T> List<T> importExcel(InputStream inputStream, String type, Class<T> tClass, int threshold) throws Exception {
         if ("xls".equals(type)) {
-            workbook = new HSSFWorkbook(inputStream);
-        } else if ("xlsx".equals(type)) {
-            workbook = new XSSFWorkbook(inputStream);
+            return importExcelForXls(inputStream, tClass, threshold);
+        } else {
+            return importExcelForXlsx(inputStream, tClass, threshold);
         }
-        if (workbook != null) {
-            return importExcel(workbook, tClass);
+    }
+
+    /**
+     * @param workbook  excel文件
+     * @param tClass    泛型
+     * @param type      类型
+     * @param threshold forkJoin粒度
+     */
+    public static <T> List<T> importExcel(Workbook workbook, Class<T> tClass, String type, int threshold) throws Exception {
+        if ("xls".equals(type)) {
+            return importExcelForXls(workbook, tClass, threshold);
+        } else {
+            return importExcelForXlsx(workbook, tClass, threshold);
         }
-        return null;
+    }
+
+    /**
+     * 不使用forkJoin的方式导入
+     */
+    public static <T> List<T> importExcelForXlsx(InputStream inputStream, Class<T> tClass) throws Exception {
+        return importExcelForXls(inputStream, tClass, 100000);
     }
 
     /**
@@ -120,8 +145,42 @@ public class ExcelImportExportUtils {
      * @param inputStream 输入流
      * @param tClass      泛型
      */
-    public static <T> List<T> importExcelForXlsx(InputStream inputStream, Class<T> tClass) throws Exception {
-        return importExcel(inputStream, tClass, "xlsx");
+    public static <T> List<T> importExcelForXlsx(InputStream inputStream, Class<T> tClass, int threshold) throws Exception {
+        if (inputStream != null) {
+            return importExcelForXlsx(new XSSFWorkbook(inputStream), tClass, threshold);
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * 不使用forkJoin的方式进行导入
+     */
+    public static <T> List<T> importExcelForXlsx(Workbook workbook, Class<T> tClass) throws Exception {
+        return importExcelForXlsx(workbook, tClass, 100000);
+    }
+
+    /**
+     * @param workbook  excel文件
+     * @param tClass    泛型
+     * @param threshold forkJoin粒度
+     */
+    public static <T> List<T> importExcelForXlsx(Workbook workbook, Class<T> tClass, int threshold) throws Exception {
+        if (workbook != null) {
+            return sheetToList(workbook.getSheetAt(0), tClass, threshold);
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * xls文件
+     *
+     * @param inputStream xls文件输入流
+     * @param tClass      泛型
+     */
+    public static <T> List<T> importExcelForXls(InputStream inputStream, Class<T> tClass) throws Exception {
+        return importExcelForXls(inputStream, tClass, 100000);
     }
 
     /**
@@ -129,10 +188,43 @@ public class ExcelImportExportUtils {
      *
      * @param inputStream 输入流
      * @param tClass      泛型
+     * @param threshold   设置forkJoin任务粒度
      */
-    public static <T> List<T> importExcelForXls(InputStream inputStream, Class<T> tClass) throws Exception {
-        return importExcel(inputStream, tClass, "xls");
+    public static <T> List<T> importExcelForXls(InputStream inputStream, Class<T> tClass, int threshold) throws Exception {
+        if (inputStream != null) {
+            // 如果是wookbook的就不需要type
+            return importExcelForXls(new HSSFWorkbook(inputStream), tClass, threshold);
+        } else {
+            return null;
+        }
     }
+
+    /**
+     * 导入xls文件
+     *
+     * @param workbook workbook
+     * @param tClass   泛型
+     */
+    public static <T> List<T> importExcelForXls(Workbook workbook, Class<T> tClass) throws Exception {
+        return importExcelForXls(workbook, tClass, 100000);
+    }
+
+    /**
+     * @param workbook  excel文件
+     * @param tClass    泛型
+     * @param threshold forkJoin任务粒度
+     */
+    public static <T> List<T> importExcelForXls(Workbook workbook, Class<T> tClass, int threshold) throws Exception {
+        if (workbook != null) {
+            return sheetToList(workbook.getSheetAt(0), tClass, threshold);
+        } else {
+            return null;
+        }
+    }
+
+
+
+
 
     /**
      * 导出excel（默认1000作为粒度，超过1000会使用forkJoin进行拆分任务处理）
@@ -178,7 +270,135 @@ public class ExcelImportExportUtils {
         exportExcelRowHighLight(list, null, null, outputStream, function, threshold);
     }
 
-    static class ForkJoinAction<T> extends RecursiveTask<Integer> {
+    private static class ForkJoinImportTask<T> extends RecursiveTask<List<T>> {
+        private int start;
+        private int end;
+        private final Sheet sheet;
+        private int threshold = 10000;// 默认1万以后需要拆分
+        private JSONObject fieldInfo;// tableBody
+        private Class<T> clazz;
+
+
+        ForkJoinImportTask(JSONObject fieldInfo, Class<T> clazz, Sheet sheet, int start, int end, int threshold) {
+            this.fieldInfo = fieldInfo;
+            this.clazz = clazz;
+            this.sheet = sheet;
+            this.start = start;
+            this.end = end;
+            this.threshold = threshold;
+        }
+
+        @Override
+        protected List<T> compute() {
+            int nums = end - start;// 计算有多少行数据
+
+            if (nums <= threshold) {
+                // 从表头描述信息得到表头的高
+                boolean flag = false;// 是否是异常行
+                String message = "";// 异常消息
+                final JSONArray result = new JSONArray();// 得到的所有数据结果
+                // 按行扫描excel表
+                for (int i = start; i <= end; i++) {
+                    final Row row = sheet.getRow(start);
+                    JSONObject oneRow = new JSONObject();// 一行数据
+                    oneRow.put(CellEnum.ROW.name(), start);// 记录行号
+                    int length = fieldInfo.keySet().size();// 有多少个字段要进行处理
+                    int count = 0;// 记录异常空字段次数，如果与size相等说明是空行
+                    //将Row转换为JSONObject
+                    for (Object entry : fieldInfo.values()) {
+                        JSONObject fieldDesc = (JSONObject) entry;
+
+                        // 得到字段的索引位子
+                        Integer index = fieldDesc.getInteger(CellEnum.COL.name());
+                        if (index < 0) {
+                            continue;
+                        }
+                        Integer width = fieldDesc.getInteger(CellEnum.WIDTH.name());// 得到宽度，如果宽度不为1则需要进行合并多个单元格的内容
+
+                        String fieldName = fieldDesc.getString(CellEnum.FIELD_NAME.name());// 字段名称
+                        String title = fieldDesc.getString(CellEnum.TITLE_NAME.name());// 标题名称
+                        String fieldType = fieldDesc.getString(CellEnum.FIELD_TYPE.name());// 字段类型
+                        String exception = fieldDesc.getString(CellEnum.EXCEPTION.name());// 转换异常返回的消息
+                        String size = fieldDesc.getString(CellEnum.SIZE.name());// 得到规模
+                        boolean nullable = fieldDesc.getBoolean(CellEnum.NULLABLE.name());
+                        String positionMessage = "异常：第" + start + "行的,第" + (index + 1) + "列 ---标题：" + title + " -- ";
+
+                        // 得到异常消息
+                        message = positionMessage + exception;
+
+                        // 获取合并的单元格值（合并后的结果，逗号分隔）
+                        String value = getMergeString(row, index, width, fieldType);
+
+                        // 获取正则表达式，如果有正则，则进行正则截取value（相当于从单元格中取部分）
+                        String pattern = fieldDesc.getString(CellEnum.PATTERN.name());
+                        boolean hasText = StringUtils.hasText(value);
+                        Object castValue = null;
+                        // 默认字段不可以为空，如果注解过程设置为true则不抛异常
+                        if (!nullable) {
+                            // 说明字段不可以为空
+                            if (!hasText) {
+                                // 字段不能为空结果为空，这个空字段异常计数+1。除非count==length，然后重新计数，否则就是一行异常数据
+                                count++;// 不为空字段异常计数+1
+                                continue;
+                            } else {
+                                try {
+                                    // 单元格有内容,要么正常、要么异常直接抛不能返回null 直接中止
+                                    value = patternConvert(pattern, value);
+                                    castValue = cast(value, fieldType, message, size);
+                                } catch (ClassCastException e) {
+                                    throw new ClassCastException(message + e.getMessage());
+                                }
+                            }
+
+                        } else {
+                            // 字段可以为空 （要么正常 要么返回null不会抛异常）
+                            length--;
+                            try {
+                                // 单元格内容无关紧要。要么正常转换，要么返回null
+                                value = patternConvert(pattern, value);
+                                castValue = cast(value, fieldType, message, size);
+                            } catch (Exception e) {
+                                //castValue=null;// 本来初始值就是null
+                            }
+                        }
+                        // 默认添加为null，只有正常才添加正常，否则中途抛异常直接中止
+                        oneRow.put(fieldName, castValue);// 添加数据
+                    }
+                    // 判断这行数据是否正常
+                    // 正常情况下count是等于length的，因为每个字段都需要处理
+                    if (count == 0) {
+                        result.add(oneRow);// 正常情况下添加一条数据
+                    } else if (count < length) {
+                        flag = true;// 需要抛异常，因为存在不合法数据
+                        break;// 非空行，并且遇到一行关键字段为null需要终止
+                    }
+                    // 空行继续扫描,或者正常
+                }
+                // 如果存在不合法数据抛异常
+                if (flag) {
+                    throw new ClassCastException(message);
+                }
+                return JSONObject.parseArray(result.toJSONString(), clazz);
+            } else {
+                int middle = (start + end) / 2;
+
+                // 处理start到middle行号内的数据
+                ForkJoinImportTask<T> left = new ForkJoinImportTask<>(fieldInfo, clazz, sheet, start, middle, threshold);
+                left.fork();
+                // 处理middle+1到end行号内的数据
+                ForkJoinImportTask<T> right = new ForkJoinImportTask<>(fieldInfo, clazz, sheet, middle + 1, end, threshold);
+                right.fork();
+                final List<T> leftList = left.join();
+                final List<T> rightList = right.join();
+                leftList.addAll(rightList);
+                return leftList;
+            }
+        }
+
+
+    }
+
+    private static class ForkJoinExportTask<T> extends RecursiveTask<Integer> {
 
         private int start;
         private int end;
@@ -198,7 +418,7 @@ public class ExcelImportExportUtils {
          * @param threshold 条件因子
          * @param function  功能型函数
          */
-        public ForkJoinAction(List<T> subList, JSONObject titleInfo, Sheet sheet, int start, int end, int threshold, Function<T, IndexedColors> function) {
+        private ForkJoinExportTask(List<T> subList, JSONObject titleInfo, Sheet sheet, int start, int end, int threshold, Function<T, IndexedColors> function) {
             this.subList = subList;
             this.titleInfo = titleInfo;
             this.start = start;
@@ -225,9 +445,9 @@ public class ExcelImportExportUtils {
 
                 List<T> subList1 = subList.subList(0, subIndex);
                 List<T> subList2 = subList.subList(subIndex, subList.size());
-                ForkJoinAction<T> left = new ForkJoinAction<>(subList1, titleInfo, sheet, start, start + subList1.size() - 1, threshold, function);
+                ForkJoinExportTask<T> left = new ForkJoinExportTask<>(subList1, titleInfo, sheet, start, start + subList1.size() - 1, threshold, function);
                 left.fork();
-                ForkJoinAction<T> right = new ForkJoinAction<>(subList2, titleInfo, sheet, start + subList1.size(), end, threshold, function);
+                ForkJoinExportTask<T> right = new ForkJoinExportTask<>(subList2, titleInfo, sheet, start + subList1.size(), end, threshold, function);
                 right.fork();
                 return left.join() + right.join();
             }
@@ -274,6 +494,9 @@ public class ExcelImportExportUtils {
             return length;
         }
 
+        /**
+         * 获取一个样式，如果没有就创建一个并且进行缓存
+         */
         private CellStyle getCellStyle(short index) {
             final HashMap<String, CellStyle> cellStyleMap = cellStyleThreadLocal.get();
             if (cellStyleMap != null) {
@@ -306,6 +529,9 @@ public class ExcelImportExportUtils {
 
         }
 
+        /**
+         * 将
+         */
         private void jsonToOneRow(Row row, JSONObject json, AtomicReference<Exception> exception, CellStyle cellStyle) {
             for (Map.Entry<String, Object> entry : titleInfo.entrySet()) {
                 final String titleIdx = entry.getKey();
@@ -432,7 +658,7 @@ public class ExcelImportExportUtils {
                 workbook = getWorkBook(exportInfo);
                 sheet = getSheet(exportInfo);
             }
-            final Integer height = getTableHeight(getExcelHeaderDescInfo(exportInfo));
+            final Integer height = getTableHeight(getTableHeaderDescInfo(exportInfo));
 
             final long start = System.currentTimeMillis();
             // 总的数据
@@ -442,11 +668,9 @@ public class ExcelImportExportUtils {
             if (threshold <= 0) {
                 threshold = 1000;
             }
-            if (length > 1000000) {
-
-            }
-            // 分任务
-            final ForkJoinAction<T> forkJoinAction = new ForkJoinAction<>(list, titleInfo, sheet, height, length + height - 1, threshold, function);
+            //if (length > 1000000) {}
+            // forkJoin线程池进行导出导出
+            final ForkJoinExportTask<T> forkJoinAction = new ForkJoinExportTask<>(list, titleInfo, sheet, height, length + height - 1, threshold, function);
             pool.invoke(forkJoinAction);// 执行任务
 
             final long end = System.currentTimeMillis();
@@ -477,21 +701,26 @@ public class ExcelImportExportUtils {
      * @param sheet  表单数据（带表头的）
      * @return 只是将单元格内容转化为List
      */
-    private static <T> List<T> excelToList(Sheet sheet, Class<T> tClass) throws Exception {
-        JSONArray jsonArray = excelToJSONArray(sheet, tClass);
-        return JSONArray.parseArray(jsonArray.toJSONString(), tClass);
-    }
+    private static <T> List<T> sheetToList(Sheet sheet, Class<T> tClass, int threshold) throws Exception {
 
-    /**
-     * （导入）将excel表转换为JSONArray
-     *
-     * @param tClass 注解模板类
-     * @param sheet  传入的excel数据
-     */
-    private static <T> JSONArray excelToJSONArray(Sheet sheet, Class<T> tClass) throws Exception {
-        JSONObject fulledExcelDescData = getImportInfoByClazz(sheet, tClass);
-        // 根据所有已知信息将excel转换为JsonArray数据
-        return sheetToJSONArray(fulledExcelDescData, sheet);
+        final JSONObject importInfoByClazz = getImportInfoByClazz(sheet, tClass);
+        final Integer tableHeight = getTableHeight(getTableHeaderDescInfo(importInfoByClazz));
+        final JSONObject titleInfo = getExcelBodyDescInfo(importInfoByClazz);
+
+        final int lastRowNum = sheet.getLastRowNum();
+
+        final long start = System.currentTimeMillis();
+        // 方式二。forkjoin
+        ForkJoinPool pool = new ForkJoinPool();
+        if (threshold <= 0) {
+            threshold = 1000;
+        }
+        final ForkJoinImportTask<T> forkJoinAction = new ForkJoinImportTask<>(titleInfo, tClass, sheet, tableHeight, lastRowNum, threshold);
+        final List<T> result = pool.invoke(forkJoinAction);// 执行任务
+        final long end = System.currentTimeMillis();
+
+        System.out.println("转换耗时" + (end - start) + "毫秒");
+        return result;
     }
 
 
@@ -578,7 +807,7 @@ public class ExcelImportExportUtils {
     private static JSONArray sheetToJSONArray(JSONObject allExcelDescData, Sheet sheet) throws Exception {
         JSONArray result = new JSONArray();
 
-        JSONObject tableHeader = getExcelHeaderDescInfo(allExcelDescData);// 表头描述信息
+        JSONObject tableHeader = getTableHeaderDescInfo(allExcelDescData);// 表头描述信息
         JSONObject tableBody = getExcelBodyDescInfo(allExcelDescData);// 表的身体描述
         // 从表头描述信息得到表头的高
         Integer headerHeight = tableHeader.getInteger(TableEnum.TABLE_HEADER_HEIGHT.name());
@@ -599,7 +828,9 @@ public class ExcelImportExportUtils {
 
                 // 得到字段的索引位子
                 Integer index = rowDesc.getInteger(CellEnum.COL.name());
-                if (index < 0) continue;
+                if (index < 0) {
+                    continue;
+                }
                 Integer width = rowDesc.getInteger(CellEnum.WIDTH.name());// 得到宽度，如果宽度不为1则需要进行合并多个单元格的内容
 
                 String fieldName = rowDesc.getString(CellEnum.FIELD_NAME.name());// 字段名称
@@ -690,13 +921,13 @@ public class ExcelImportExportUtils {
      */
     private static JSONObject getExcelHeaderDescData(Class<T> clazz) {
         JSONObject partDescData = getImportDescriptionByClazz(clazz);
-        return getExcelHeaderDescInfo(partDescData);
+        return getTableHeaderDescInfo(partDescData);
     }
 
     /**
      * 从json中获取Excel表头部分数据
      */
-    private static JSONObject getExcelHeaderDescInfo(JSONObject fulledExcelDescData) {
+    private static JSONObject getTableHeaderDescInfo(JSONObject fulledExcelDescData) {
         return fulledExcelDescData.getJSONObject(TableEnum.TABLE_HEADER.name());
     }
 
@@ -707,7 +938,7 @@ public class ExcelImportExportUtils {
      * @param sheet         待解析的excel表格
      */
     private static JSONObject filledTitleIndexBySheet(JSONObject excelDescData, Sheet sheet) {
-        JSONObject tableHeaderDesc = getExcelHeaderDescInfo(excelDescData);
+        JSONObject tableHeaderDesc = getTableHeaderDescInfo(excelDescData);
         JSONObject tableBodyDesc = getExcelBodyDescInfo(excelDescData);
         Integer height = getTableHeight(tableHeaderDesc);// 得到表头占据了那几行
 
