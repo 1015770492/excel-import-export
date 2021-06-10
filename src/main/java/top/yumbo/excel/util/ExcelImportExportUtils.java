@@ -136,7 +136,7 @@ public class ExcelImportExportUtils {
      * 不使用forkJoin的方式导入
      */
     public static <T> List<T> importExcelForXlsx(InputStream inputStream, Class<T> tClass) throws Exception {
-        return importExcelForXls(inputStream, tClass, 100000);
+        return importExcelForXlsx(inputStream, tClass, 100000);
     }
 
     /**
@@ -719,7 +719,7 @@ public class ExcelImportExportUtils {
         final List<T> result = pool.invoke(forkJoinAction);// 执行任务
         final long end = System.currentTimeMillis();
 
-        System.out.println("转换耗时" + (end - start) + "毫秒");
+        System.out.println("forkJoin读转换耗时" + (end - start) + "毫秒");
         return result;
     }
 
@@ -962,7 +962,6 @@ public class ExcelImportExportUtils {
             }
 
         });
-        System.out.println(excelDescData);
         return excelDescData;
     }
 

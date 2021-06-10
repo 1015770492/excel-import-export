@@ -15,14 +15,24 @@ public class ImportExcelDemo {
      */
     public static void main(String[] args) throws Exception{
 
-//        System.out.println("=====导入年度数据======");
+        System.out.println("=====导入年度数据======");
 //        String areaYear = "src/test/java/top/yumbo/test/excel/1.xlsx";
-//        final List<ImportForYear> yearList = ExcelImportExportUtils.importExcelForXlsx(new FileInputStream(areaYear), ImportForYear.class);
+        String areaYear = "src/test/java/top/yumbo/test/excel/1_big.xlsx";
+        final long start = System.currentTimeMillis();
+        final List<ImportForYear> yearList = ExcelImportExportUtils.importExcelForXlsx(new FileInputStream(areaYear), ImportForYear.class,2000);
+        final long end = System.currentTimeMillis();
+        System.out.println("总共耗时"+(end-start)+"毫秒");
+        System.out.println("总共有"+yearList.size()+"条记录");
 //        yearList.forEach(System.out::println);
+
         System.out.println("=====导入季度数据======");
-        String areaQuarter = "src/test/java/top/yumbo/test/excel/2.xlsx";
-        final List<ImportForQuarter> quarterList = ExcelImportExportUtils.importExcel(new FileInputStream(areaQuarter),"xlsx", ImportForQuarter.class,0);
+        final long start2 = System.currentTimeMillis();
+//        String areaQuarter = "src/test/java/top/yumbo/test/excel/2.xlsx";
+        String areaQuarter = "src/test/java/top/yumbo/test/excel/2_big.xlsx";
+        final List<ImportForQuarter> quarterList = ExcelImportExportUtils.importExcelForXlsx(new FileInputStream(areaQuarter), ImportForQuarter.class,2000);
+        final long end2 = System.currentTimeMillis();
+        System.out.println("总共耗时"+(end-start)+"毫秒");
+//        quarterList.forEach(System.out::println);
         System.out.println("总共有"+quarterList.size()+"条记录");
-        quarterList.forEach(System.out::println);
     }
 }
