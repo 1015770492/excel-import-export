@@ -43,7 +43,9 @@
            因此如果想要使用最新版本的，方式一、clone源码进行打包安装，然后引入坐标即可
            方式二、等阿里仓自动同步过去后引入坐标即可
 </span>
+
 以其中一个版本为例（选择最新版的）
+
 ```xml
 <!-- https://mvnrepository.com/artifact/top.yumbo.excel/excel-import-export -->
 <dependency>
@@ -52,7 +54,6 @@
     <version>1.3.1</version>
 </dependency>
 ```
-
 
 
 
