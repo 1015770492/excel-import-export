@@ -16,7 +16,7 @@ import java.math.BigDecimal;
 public class ImportForQuarter {
 
     /**
-     * 年份
+     * 年份，为了避免暴露一些隐秘消息故字段都采用了w命名，防止泄露机密。不影响结果
      */
     // 根据正则截取单元格内容关于年份的值。其中exportFormat是导出excel填充到单元格的内容
     @ExcelCellBind(title = "时间", importPattern = "([0-9]{4})年", exportFormat = "$0年")
