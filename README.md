@@ -45,13 +45,29 @@
 </span>
 
 以其中一个版本为例（选择最新版的）
+将仓库地址改为下面的地址，以前的老版本仓库地址是：http://maven.aliyun.com/nexus/content/groups/public/
+新仓库地址是：https://maven.aliyun.com/repository/central
+经过测试老版本的仓库下载不了我同步在中央仓库的jar包，建议统一改成新版的ali镜仓地址
+然后重启idea刷新一下maven依赖即可
+```xml
+<!--镜像仓库地址-->
+<mirrors>
+    <mirror>
+      <id>alimaven</id>
+      <name>aliyun maven</name>
+      <url>https://maven.aliyun.com/repository/central</url>
+      <mirrorOf>central</mirrorOf>
+    </mirror>
+</mirrors>
+```
 
+项目依赖地址：如果1.3.2不行就使用1.3.1 这两个版本内容一样。
 ```xml
 <!-- https://mvnrepository.com/artifact/top.yumbo.excel/excel-import-export -->
 <dependency>
     <groupId>top.yumbo.excel</groupId>
     <artifactId>excel-import-export</artifactId>
-    <version>1.3.1</version>
+    <version>1.3.2</version>
 </dependency>
 ```
 
