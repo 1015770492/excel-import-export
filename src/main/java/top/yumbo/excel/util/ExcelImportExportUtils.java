@@ -223,9 +223,6 @@ public class ExcelImportExportUtils {
     }
 
 
-
-
-
     /**
      * 导出excel（默认1000作为粒度，超过1000会使用forkJoin进行拆分任务处理）
      *
@@ -671,15 +668,16 @@ public class ExcelImportExportUtils {
             //if (length > 1000000) {}
             // forkJoin线程池进行导出导出
             final ForkJoinExportTask<T> forkJoinAction = new ForkJoinExportTask<>(list, titleInfo, sheet, height, length + height - 1, threshold, function);
-            pool.invoke(forkJoinAction);// 执行任务
+            // 执行任务
+            pool.invoke(forkJoinAction);
 
             final long end = System.currentTimeMillis();
 
             System.out.println("转换耗时" + (end - start) + "毫秒");
             workbook.write(outputStream);
             workbook.close();
-        } else if (list == null) {
-            throw new NullPointerException("list不能为null");
+        } else if (list == null || list.size() == 0) {
+            throw new NullPointerException("list不能为null 或 list数据量不能为0");
         } else {
             throw new NullPointerException("输出流不能为空");
         }

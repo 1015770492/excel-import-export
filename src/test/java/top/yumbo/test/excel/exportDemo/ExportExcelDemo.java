@@ -7,10 +7,8 @@ import top.yumbo.excel.util.ExcelImportExportUtils;
 
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.IntStream;
 
 /**
  * @author jinhua
@@ -23,10 +21,10 @@ public class ExportExcelDemo {
          * 得到List集合
          */
         System.out.println("=====导入季度数据======");
-        String areaQuarter = "src/test/java/top/yumbo/test/excel/2_2.xlsx";
+        String areaQuarter = "src/test/java/top/yumbo/test/excel/2_big.xlsx";
 //        String areaQuarter = "D:/季度数据-原样式导出6000.xlsx";
         final long start1 = System.currentTimeMillis();
-        final List<ExportForQuarter> quarterList = ExcelImportExportUtils.importExcelForXlsx(new FileInputStream(areaQuarter), ExportForQuarter.class);
+        final List<ExportForQuarter> quarterList = ExcelImportExportUtils.importExcelForXlsx(new FileInputStream(areaQuarter), ExportForQuarter.class,30000);
         final long end1 = System.currentTimeMillis();
         System.out.println("数据量" + quarterList.size() + "条，导入耗时" + (end1 - start1) + "毫秒");
 
@@ -34,27 +32,29 @@ public class ExportExcelDemo {
         /**
          * 将其导出
          */
-        if (quarterList != null) {
-            // 将数据导出到本地文件, 如果要导出到web暴露出去只要传入输出流即可
-            List<ExportForQuarter> list = new ArrayList<>();
-            for (int i = 0; i < 10; i++) {
-                list.addAll(quarterList);
-            }
-            for (int i = 0; i < 3; i++) {
-                System.out.println("第" + (i + 1) + "次导出测试");
-                System.out.println("总数据量：" + list.size() + "条记录");
-                IntStream.of(2000, 4000, 6000).forEach(threshold -> {
-                    System.out.println("threshold=" + threshold);
-                    try {
-                        exportDefault(list, threshold);
-                        exportHighLight(list, threshold);
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                });
-            }
-
-        }
+//        if (quarterList != null) {
+//            // 将数据导出到本地文件, 如果要导出到web暴露出去只要传入输出流即可
+//            List<ExportForQuarter> list = new ArrayList<>();
+//            for (int i = 0; i < 5; i++) {
+//                list.addAll(quarterList);
+//            }
+//            for (int i = 0; i < 3; i++) {
+//                System.out.println("第" + (i + 1) + "次导出测试");
+//                System.out.println("总数据量：" + list.size() + "条记录");
+//                IntStream.of(10000).forEach(threshold -> {
+//                    System.out.println("threshold=" + threshold);
+//                    try {
+//                        exportDefault(list, threshold);
+////                        exportHighLight(list, threshold);
+//                        System.out.println(">>>>>>>>>>>>>>>>>");
+//
+//                    } catch (Exception e) {
+//                        e.printStackTrace();
+//                    }
+//                });
+//                break;
+//            }
+//        }
 
     }
 
@@ -66,20 +66,20 @@ public class ExportExcelDemo {
         ExcelImportExportUtils.exportExcelRowHighLight(quarterList,
                 new FileOutputStream("D:/季度数据-高亮行导出" + threshold + ".xlsx"),
                 (t) -> {
-                    if (t.getW4() == 1) {
+                    if (t.getW2() == 1) {
                         return IndexedColors.YELLOW;
-                    } else if (t.getW4() == 2) {
+                    } else if (t.getW2() == 2) {
                         return IndexedColors.ROSE;
-                    } else if (t.getW4() == 3) {
+                    } else if (t.getW2() == 3) {
                         return IndexedColors.SKY_BLUE;
-                    } else if (t.getW4() == 4) {
+                    } else if (t.getW2() == 4) {
                         return IndexedColors.GREY_25_PERCENT;
                     } else {
                         return IndexedColors.WHITE;
                     }
                 }, threshold);
         final long end = System.currentTimeMillis();
-        System.out.println("高亮行总共用了" + (end - start) + "毫秒");
+        System.out.println("高亮行总共用了" + (end - start) + "毫秒\n");
     }
 
     private static int exportDefault(List<ExportForQuarter> quarterList, int threshold) throws Exception {
@@ -89,7 +89,7 @@ public class ExportExcelDemo {
         final long start1 = System.currentTimeMillis();
         ExcelImportExportUtils.exportExcel(quarterList, new FileOutputStream("D:/季度数据-原样式导出" + threshold + ".xlsx"), threshold);
         final long end1 = System.currentTimeMillis();
-        System.out.println("原样式导出总共用了" + (end1 - start1) + "毫秒");
+        System.out.println("原样式导出总共用了" + (end1 - start1) + "毫秒\n");
         return threshold;
     }
 

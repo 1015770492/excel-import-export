@@ -8,19 +8,24 @@
 1. 字典样式会新增@MapEntry注解注入key，value字典数据（会在导入、导出自动转换字段和excel表格之间的数据）
 2. （高亮行显示的前提下 或 默认样式下）部分单元格的字体，单元格样式的调整通过字段上注入@ExcelCellStyle，支持重复注解，后期使用java8的函数式接口返回这个字段具体使用那个样式。
 
+
+底层的读取和写入都采用了forkjoin进行处理，性能上足够用，并且为了方便调整，额外提供了带threshold的方法
+优点:
+导入42M，79w条数据只需要71秒左右
+导出文件可以实现高亮显示
+数据量小的情况下可以随便使用，数据量比较大的情况下很可能会出现堆内存溢出。后续会堆内存进行优化。
+如果内存足够可以适当的调整启动参数-Xmx8G，越大越好。
+
 ***
 
 关于注解具体功能，查看内部注释即可。
 
+<span style="color:red">
 特别提醒：表头注解resource可以是http协议和https协议的excel模板文件，对于就版本的xls格式还需要注入type="xls"才可，否则因为兼容会报错。如果想要使用的是本地的文件作为模板也可以以path://开头，绝对路径则以 / 开头，相对路径直接文件夹开头。
-
-
+</span>
 
 导入功能不需要resource因为导入本身就会传一个excel，本身就是模板
-
 导出功能：导出功能如果不通过注解方式提供resource，也可以用输入流的方式传入模板（需要传入是xls还是xlsx）
-
-
 
 ***
 
@@ -33,13 +38,18 @@
 
 [maven中央仓库地址（选择最新版本的文档会更新到最新版本）](https://mvnrepository.com/artifact/top.yumbo.excel/excel-import-export)
 
+<span style="color:red">
+特别提醒：由于国内很多使用的是aliyun的maven仓库依赖，阿里的仓库很可能同步的没有那么快，
+           因此如果想要使用最新版本的，方式一、clone源码进行打包安装，然后引入坐标即可
+           方式二、等阿里仓自动同步过去后引入坐标即可
+</span>
 以其中一个版本为例（选择最新版的）
 ```xml
 <!-- https://mvnrepository.com/artifact/top.yumbo.excel/excel-import-export -->
 <dependency>
     <groupId>top.yumbo.excel</groupId>
     <artifactId>excel-import-export</artifactId>
-    <version>1.2</version>
+    <version>1.3.1</version>
 </dependency>
 
 ```
