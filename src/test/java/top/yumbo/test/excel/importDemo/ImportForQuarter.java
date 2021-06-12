@@ -12,7 +12,8 @@ import java.math.BigDecimal;
  * @date 2021/5/20 14:18
  */
 @Data
-@ExcelTableHeader(height = 4, tableName = "区域季度数据")// 表头占4行
+// 表头占4行，将height设置为4
+@ExcelTableHeader(height = 4, tableName = "区域季度数据")
 public class ImportForQuarter {
 
     /**

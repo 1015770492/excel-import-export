@@ -241,23 +241,43 @@ public class ExcelImportExportUtils {
      * @param threshold    任务粒度
      */
     public static <T> void exportExcel(List<T> list, OutputStream outputStream, int threshold) throws Exception {
-        exportExcel(list, null, null, outputStream, threshold);
+        exportExcelForType(list, null, null, outputStream, threshold);
     }
 
     /**
      * 导出excel，在没有输入resource的情况下
      * 默认的样式
      */
-    public static <T> void exportExcel(List<T> list, InputStream inputStream, String type, OutputStream outputStream, int threshold) throws Exception {
+    public static <T> void exportExcelForType(List<T> list, InputStream inputStream, String type, OutputStream outputStream, int threshold) throws Exception {
         exportExcelRowHighLight(list, inputStream, type, outputStream, null, threshold);
     }
 
+    /**
+     * xls文件的导出
+     */
+    public static <T> void exportExcelForXls(List<T> list, InputStream inputStream, OutputStream outputStream, int threshold) throws Exception {
+        exportExcelRowHighLight(list, inputStream, "xls", outputStream, null, threshold);
+    }
+
+    /**
+     * xlsx文件的导出
+     */
+    public static <T> void exportExcelForXlsx(List<T> list, InputStream inputStream, OutputStream outputStream, int threshold) throws Exception {
+        exportExcelRowHighLight(list, inputStream, "xlsx", outputStream, null, threshold);
+    }
+
+    /**
+     * 多功能的导出，function为null就是默认的导出
+     * function不为null就是高亮行的导出
+     *
+     */
     public static <T> void exportExcelRowHighLight(List<T> list, OutputStream outputStream, Function<T, IndexedColors> function) throws Exception {
         exportExcelRowHighLight(list, outputStream, function, 1000);
     }
 
     /**
-     * 行高亮显示
+     * 多功能的导出，function为null就是默认的导出
+     * function不为null就是高亮行的导出
      *
      * @param list         数据
      * @param outputStream 导出的文件的输出流
@@ -296,9 +316,9 @@ public class ExcelImportExportUtils {
                 final JSONArray result = new JSONArray();// 得到的所有数据结果
                 // 按行扫描excel表
                 for (int i = start; i <= end; i++) {
-                    final Row row = sheet.getRow(start);
+                    final Row row = sheet.getRow(i);
                     JSONObject oneRow = new JSONObject();// 一行数据
-                    oneRow.put(CellEnum.ROW.name(), start);// 记录行号
+                    oneRow.put(CellEnum.ROW.name(), i);// 记录行号
                     int length = fieldInfo.keySet().size();// 有多少个字段要进行处理
                     int count = 0;// 记录异常空字段次数，如果与size相等说明是空行
                     //将Row转换为JSONObject
@@ -318,7 +338,7 @@ public class ExcelImportExportUtils {
                         String exception = fieldDesc.getString(CellEnum.EXCEPTION.name());// 转换异常返回的消息
                         String size = fieldDesc.getString(CellEnum.SIZE.name());// 得到规模
                         boolean nullable = fieldDesc.getBoolean(CellEnum.NULLABLE.name());
-                        String positionMessage = "异常：第" + start + "行的,第" + (index + 1) + "列 ---标题：" + title + " -- ";
+                        String positionMessage = "异常：第" + i + "行的,第" + (index + 1) + "列 ---标题：" + title + " -- ";
 
                         // 得到异常消息
                         message = positionMessage + exception;
