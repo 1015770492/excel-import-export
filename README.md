@@ -64,25 +64,29 @@
 
 当前项目修改maven仓库地址
 
+项目依赖地址：1.3.3
+
 ```xml
 <repositories>
     <repository>
         <id>alimaven</id>
         <name>aliyun maven</name>
+        <!-- 新版本的aliyun镜像仓库地址建议mirrors中也修改，
+             如果已经改好了，则可以去掉这个repositories -->
         <url>https://maven.aliyun.com/repository/central</url>
     </repository>
 </repositories>
-```
 
-项目依赖地址：如果1.3.2不行就使用1.3.1 这两个版本内容一样。
+<dependencies>
 
-```xml
-<!-- https://mvnrepository.com/artifact/top.yumbo.excel/excel-import-export -->
-<dependency>
-    <groupId>top.yumbo.excel</groupId>
-    <artifactId>excel-import-export</artifactId>
-    <version>1.3.2</version>
-</dependency>
+    <!-- https://mvnrepository.com/artifact/top.yumbo.excel/excel-import-export -->
+    <dependency>
+        <groupId>top.yumbo.excel</groupId>
+        <artifactId>excel-import-export</artifactId>
+        <version>1.3.3</version>
+    </dependency>
+
+</dependencies>
 ```
 
 

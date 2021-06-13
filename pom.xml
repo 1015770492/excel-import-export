@@ -21,6 +21,7 @@
         <serverId>ossrh</serverId><!-- 服务id -->
     </properties>
 
+
     <!--填入开发者信息，姓名、邮箱、项目地址-->
     <developers>
         <developer>

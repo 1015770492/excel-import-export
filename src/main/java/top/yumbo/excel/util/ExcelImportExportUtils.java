@@ -288,12 +288,12 @@ public class ExcelImportExportUtils {
     }
 
     private static class ForkJoinImportTask<T> extends RecursiveTask<List<T>> {
-        private int start;
-        private int end;
+        private final int start;
+        private final int end;
         private final Sheet sheet;
-        private int threshold = 10000;// 默认1万以后需要拆分
-        private JSONObject fieldInfo;// tableBody
-        private Class<T> clazz;
+        private final int threshold;// 默认1万以后需要拆分
+        private final JSONObject fieldInfo;// tableBody
+        private final Class<T> clazz;
 
 
         ForkJoinImportTask(JSONObject fieldInfo, Class<T> clazz, Sheet sheet, int start, int end, int threshold) {
@@ -306,7 +306,7 @@ public class ExcelImportExportUtils {
         }
 
         @Override
-        protected List<T> compute() {
+        protected List<T> compute() throws ClassCastException{
             int nums = end - start;// 计算有多少行数据
 
             if (nums <= threshold) {
@@ -417,13 +417,13 @@ public class ExcelImportExportUtils {
 
     private static class ForkJoinExportTask<T> extends RecursiveTask<Integer> {
 
-        private int start;
-        private int end;
-        private List<T> subList;
+        private final int start;
+        private final int end;
+        private final List<T> subList;
         private final Sheet sheet;
-        private int threshold = 1000;// 默认1千以后需要拆分
-        private Function<T, IndexedColors> function;// 功能性函数
-        private JSONObject titleInfo;// 单元格标题列描述信息
+        private final int threshold;// 默认1千以后需要拆分
+        private final Function<T, IndexedColors> function;// 功能性函数
+        private final JSONObject titleInfo;// 单元格标题列描述信息
         final static ThreadLocal<HashMap<String, CellStyle>> cellStyleThreadLocal = new ThreadLocal<>();
 
         /**
@@ -447,15 +447,11 @@ public class ExcelImportExportUtils {
 
 
         @Override
-        protected Integer compute() {
+        protected Integer compute() throws ClassCastException{
             int length = end - start;
 
             if (length <= threshold) {
-                try {
-                    return this.subListFilledSheet();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+                return this.subListFilledSheet();
             } else {
                 int middle = (start + end) / 2;
                 int subIndex = middle - start + 1;// 要包含middle这个位子则需要加1进行截取
@@ -468,13 +464,12 @@ public class ExcelImportExportUtils {
                 right.fork();
                 return left.join() + right.join();
             }
-            return 0;
         }
 
         /**
          * 将集合数据填入表格
          */
-        private int subListFilledSheet() throws Exception {
+        private int subListFilledSheet() throws ClassCastException {
             final int length = subList.size();
             //System.out.println("长度是:" + length + ",行号范围长度:" + (end - start + 1) + "。起始行号" + start + "，结束行号" + end);
 
@@ -490,7 +485,7 @@ public class ExcelImportExportUtils {
                     }
                 }
 
-                AtomicReference<Exception> exception = new AtomicReference<>();
+                AtomicReference<ClassCastException> exception = new AtomicReference<>();
                 // 遍历表身体信息
                 T t = subList.get(i);
                 if (function != null) {
@@ -522,7 +517,7 @@ public class ExcelImportExportUtils {
                     return cellStyle2;// 存在样式直接返回
                 }
             } else {
-                cellStyleThreadLocal.set(new HashMap<String, CellStyle>());
+                cellStyleThreadLocal.set(new HashMap<>());
             }
             final Workbook workbook = sheet.getWorkbook();
             final HashMap<String, CellStyle> styleMap = cellStyleThreadLocal.get();
@@ -549,7 +544,7 @@ public class ExcelImportExportUtils {
         /**
          * 将
          */
-        private void jsonToOneRow(Row row, JSONObject json, AtomicReference<Exception> exception, CellStyle cellStyle) {
+        private void jsonToOneRow(Row row, JSONObject json, AtomicReference<ClassCastException> exception, CellStyle cellStyle) {
             for (Map.Entry<String, Object> entry : titleInfo.entrySet()) {
                 final String titleIdx = entry.getKey();
                 final Object v = entry.getValue();
@@ -630,7 +625,7 @@ public class ExcelImportExportUtils {
 
                         } else {
                             // 没有拆分词，本身需要拆分，抛异常
-                            exception.set(new Exception(fieldName + "字段的注解上 缺少exportSplit拆分词"));
+                            exception.set(new ClassCastException(fieldName + "字段的注解上 缺少exportSplit拆分词"));
                         }
                     } else {
 
@@ -734,7 +729,8 @@ public class ExcelImportExportUtils {
             threshold = 1000;
         }
         final ForkJoinImportTask<T> forkJoinAction = new ForkJoinImportTask<>(titleInfo, tClass, sheet, tableHeight, lastRowNum, threshold);
-        final List<T> result = pool.invoke(forkJoinAction);// 执行任务
+        // 执行任务
+        final List<T> result = pool.invoke(forkJoinAction);
         final long end = System.currentTimeMillis();
 
         System.out.println("forkJoin读转换耗时" + (end - start) + "毫秒");
@@ -1521,13 +1517,13 @@ public class ExcelImportExportUtils {
             } else if (aClass == String.class) {
                 obj = value;//直接返回字符串
             } else if (aClass == Integer.class) {
-                obj = new Double(value).intValue();
+                obj = new BigDecimal(value).intValue();
             } else if (aClass == Long.class) {
                 obj = Long.parseLong(value.split("\\.")[0]);// 小数点以后的不要
             } else if (aClass == Double.class) {
                 obj = Double.parseDouble(value);
             } else if (aClass == Short.class) {
-                obj = new Double(value).shortValue();
+                obj = new BigDecimal(value).shortValue();
             } else if (aClass == Character.class) {
                 obj = value.charAt(0);
             } else if (aClass == Float.class) {
