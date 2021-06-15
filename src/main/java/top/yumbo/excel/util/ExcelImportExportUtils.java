@@ -269,7 +269,6 @@ public class ExcelImportExportUtils {
     /**
      * 多功能的导出，function为null就是默认的导出
      * function不为null就是高亮行的导出
-     *
      */
     public static <T> void exportExcelRowHighLight(List<T> list, OutputStream outputStream, Function<T, IndexedColors> function) throws Exception {
         exportExcelRowHighLight(list, outputStream, function, 1000);
@@ -306,96 +305,12 @@ public class ExcelImportExportUtils {
         }
 
         @Override
-        protected List<T> compute() throws ClassCastException{
+        protected List<T> compute() throws ClassCastException {
             int nums = end - start;// 计算有多少行数据
 
             if (nums <= threshold) {
-                // 从表头描述信息得到表头的高
-                boolean flag = false;// 是否是异常行
-                String message = "";// 异常消息
-                final JSONArray result = new JSONArray();// 得到的所有数据结果
-                // 按行扫描excel表
-                for (int i = start; i <= end; i++) {
-                    final Row row = sheet.getRow(i);
-                    JSONObject oneRow = new JSONObject();// 一行数据
-                    oneRow.put(CellEnum.ROW.name(), i);// 记录行号
-                    int length = fieldInfo.keySet().size();// 有多少个字段要进行处理
-                    int count = 0;// 记录异常空字段次数，如果与size相等说明是空行
-                    //将Row转换为JSONObject
-                    for (Object entry : fieldInfo.values()) {
-                        JSONObject fieldDesc = (JSONObject) entry;
-
-                        // 得到字段的索引位子
-                        Integer index = fieldDesc.getInteger(CellEnum.COL.name());
-                        if (index < 0) {
-                            continue;
-                        }
-                        Integer width = fieldDesc.getInteger(CellEnum.WIDTH.name());// 得到宽度，如果宽度不为1则需要进行合并多个单元格的内容
-
-                        String fieldName = fieldDesc.getString(CellEnum.FIELD_NAME.name());// 字段名称
-                        String title = fieldDesc.getString(CellEnum.TITLE_NAME.name());// 标题名称
-                        String fieldType = fieldDesc.getString(CellEnum.FIELD_TYPE.name());// 字段类型
-                        String exception = fieldDesc.getString(CellEnum.EXCEPTION.name());// 转换异常返回的消息
-                        String size = fieldDesc.getString(CellEnum.SIZE.name());// 得到规模
-                        boolean nullable = fieldDesc.getBoolean(CellEnum.NULLABLE.name());
-                        String positionMessage = "异常：第" + i + "行的,第" + (index + 1) + "列 ---标题：" + title + " -- ";
-
-                        // 得到异常消息
-                        message = positionMessage + exception;
-
-                        // 获取合并的单元格值（合并后的结果，逗号分隔）
-                        String value = getMergeString(row, index, width, fieldType);
-
-                        // 获取正则表达式，如果有正则，则进行正则截取value（相当于从单元格中取部分）
-                        String pattern = fieldDesc.getString(CellEnum.PATTERN.name());
-                        boolean hasText = StringUtils.hasText(value);
-                        Object castValue = null;
-                        // 默认字段不可以为空，如果注解过程设置为true则不抛异常
-                        if (!nullable) {
-                            // 说明字段不可以为空
-                            if (!hasText) {
-                                // 字段不能为空结果为空，这个空字段异常计数+1。除非count==length，然后重新计数，否则就是一行异常数据
-                                count++;// 不为空字段异常计数+1
-                                continue;
-                            } else {
-                                try {
-                                    // 单元格有内容,要么正常、要么异常直接抛不能返回null 直接中止
-                                    value = patternConvert(pattern, value);
-                                    castValue = cast(value, fieldType, message, size);
-                                } catch (ClassCastException e) {
-                                    throw new ClassCastException(message + e.getMessage());
-                                }
-                            }
-
-                        } else {
-                            // 字段可以为空 （要么正常 要么返回null不会抛异常）
-                            length--;
-                            try {
-                                // 单元格内容无关紧要。要么正常转换，要么返回null
-                                value = patternConvert(pattern, value);
-                                castValue = cast(value, fieldType, message, size);
-                            } catch (Exception e) {
-                                //castValue=null;// 本来初始值就是null
-                            }
-                        }
-                        // 默认添加为null，只有正常才添加正常，否则中途抛异常直接中止
-                        oneRow.put(fieldName, castValue);// 添加数据
-                    }
-                    // 判断这行数据是否正常
-                    // 正常情况下count是等于length的，因为每个字段都需要处理
-                    if (count == 0) {
-                        result.add(oneRow);// 正常情况下添加一条数据
-                    } else if (count < length) {
-                        flag = true;// 需要抛异常，因为存在不合法数据
-                        break;// 非空行，并且遇到一行关键字段为null需要终止
-                    }
-                    // 空行继续扫描,或者正常
-                }
-                // 如果存在不合法数据抛异常
-                if (flag) {
-                    throw new ClassCastException(message);
-                }
-                return JSONObject.parseArray(result.toJSONString(), clazz);
+                // 解析数据并且返回List
+                return praseRowsToList();
             } else {
                 int middle = (start + end) / 2;
 
@@ -410,6 +325,98 @@ public class ExcelImportExportUtils {
                 leftList.addAll(rightList);
                 return leftList;
             }
+        }
+
+        /**
+         * 解析从start到end行的数据转换为List
+         */
+        private List<T> praseRowsToList() {
+            // 从表头描述信息得到表头的高
+            boolean flag = false;// 是否是异常行
+            String message = "";// 异常消息
+            final JSONArray result = new JSONArray();// 得到的所有数据结果
+            // 按行扫描excel表
+            for (int i = start; i <= end; i++) {
+                final Row row = sheet.getRow(i);
+                JSONObject oneRow = new JSONObject();// 一行数据
+                oneRow.put(CellEnum.ROW.name(), i);// 记录行号
+                int length = fieldInfo.keySet().size();// 有多少个字段要进行处理
+                int count = 0;// 记录异常空字段次数，如果与size相等说明是空行
+                //将Row转换为JSONObject
+                for (Object entry : fieldInfo.values()) {
+                    JSONObject fieldDesc = (JSONObject) entry;
+
+                    // 得到字段的索引位子
+                    Integer index = fieldDesc.getInteger(CellEnum.COL.name());
+                    if (index < 0) {
+                        continue;
+                    }
+                    Integer width = fieldDesc.getInteger(CellEnum.WIDTH.name());// 得到宽度，如果宽度不为1则需要进行合并多个单元格的内容
+
+                    String fieldName = fieldDesc.getString(CellEnum.FIELD_NAME.name());// 字段名称
+                    String title = fieldDesc.getString(CellEnum.TITLE_NAME.name());// 标题名称
+                    String fieldType = fieldDesc.getString(CellEnum.FIELD_TYPE.name());// 字段类型
+                    String exception = fieldDesc.getString(CellEnum.EXCEPTION.name());// 转换异常返回的消息
+                    String size = fieldDesc.getString(CellEnum.SIZE.name());// 得到规模
+                    boolean nullable = fieldDesc.getBoolean(CellEnum.NULLABLE.name());
+                    String positionMessage = "异常：第" + i + "行的,第" + (index + 1) + "列 ---标题：" + title + " -- ";
+
+                    // 得到异常消息
+                    message = positionMessage + exception;
+
+                    // 获取合并的单元格值（合并后的结果，逗号分隔）
+                    String value = getMergeString(row, index, width, fieldType);
+
+                    // 获取正则表达式，如果有正则，则进行正则截取value（相当于从单元格中取部分）
+                    String pattern = fieldDesc.getString(CellEnum.PATTERN.name());
+                    boolean hasText = StringUtils.hasText(value);
+                    Object castValue = null;
+                    // 默认字段不可以为空，如果注解过程设置为true则不抛异常
+                    if (!nullable) {
+                        // 说明字段不可以为空
+                        if (!hasText) {
+                            // 字段不能为空结果为空，这个空字段异常计数+1。除非count==length，然后重新计数，否则就是一行异常数据
+                            count++;// 不为空字段异常计数+1
+                            continue;
+                        } else {
+                            try {
+                                // 单元格有内容,要么正常、要么异常直接抛不能返回null 直接中止
+                                value = patternConvert(pattern, value);
+                                castValue = cast(value, fieldType, message, size);
+                            } catch (ClassCastException e) {
+                                throw new ClassCastException(message + e.getMessage());
+                            }
+                        }
+
+                    } else {
+                        // 字段可以为空 （要么正常 要么返回null不会抛异常）
+                        length--;
+                        try {
+                            // 单元格内容无关紧要。要么正常转换，要么返回null
+                            value = patternConvert(pattern, value);
+                            castValue = cast(value, fieldType, message, size);
+                        } catch (Exception e) {
+                            //castValue=null;// 本来初始值就是null
+                        }
+                    }
+                    // 默认添加为null，只有正常才添加正常，否则中途抛异常直接中止
+                    oneRow.put(fieldName, castValue);// 添加数据
+                }
+                // 判断这行数据是否正常
+                // 正常情况下count是等于length的，因为每个字段都需要处理
+                if (count == 0) {
+                    result.add(oneRow);// 正常情况下添加一条数据
+                } else if (count < length) {
+                    flag = true;// 需要抛异常，因为存在不合法数据
+                    break;// 非空行，并且遇到一行关键字段为null需要终止
+                }
+                // 空行继续扫描,或者正常
+            }
+            // 如果存在不合法数据抛异常
+            if (flag) {
+                throw new ClassCastException(message);
+            }
+            return JSONObject.parseArray(result.toJSONString(), clazz);
         }
 
 
@@ -447,7 +454,7 @@ public class ExcelImportExportUtils {
 
 
         @Override
-        protected Integer compute() throws ClassCastException{
+        protected Integer compute() throws ClassCastException {
             int length = end - start;
 
             if (length <= threshold) {
@@ -716,6 +723,7 @@ public class ExcelImportExportUtils {
      */
     private static <T> List<T> sheetToList(Sheet sheet, Class<T> tClass, int threshold) throws Exception {
 
+        sheet.getWorkbook().setActiveSheet(0);
         final JSONObject importInfoByClazz = getImportInfoByClazz(sheet, tClass);
         final Integer tableHeight = getTableHeight(getTableHeaderDescInfo(importInfoByClazz));
         final JSONObject titleInfo = getExcelBodyDescInfo(importInfoByClazz);
@@ -820,9 +828,10 @@ public class ExcelImportExportUtils {
      */
     private static JSONArray sheetToJSONArray(JSONObject allExcelDescData, Sheet sheet) throws Exception {
         JSONArray result = new JSONArray();
-
-        JSONObject tableHeader = getTableHeaderDescInfo(allExcelDescData);// 表头描述信息
-        JSONObject tableBody = getExcelBodyDescInfo(allExcelDescData);// 表的身体描述
+        // 表头描述信息
+        JSONObject tableHeader = getTableHeaderDescInfo(allExcelDescData);
+        // 表的身体描述
+        JSONObject tableBody = getExcelBodyDescInfo(allExcelDescData);
         // 从表头描述信息得到表头的高
         Integer headerHeight = tableHeader.getInteger(TableEnum.TABLE_HEADER_HEIGHT.name());
         final int lastRowNum = sheet.getLastRowNum();
@@ -1197,7 +1206,11 @@ public class ExcelImportExportUtils {
                     ResponseEntity<byte[]> obj = restTemplate.exchange(resourcePath, HttpMethod.GET, entity, byte[].class);
                     final byte[] body = obj.getBody();
                     //获取请求中的输入流
-                    try (final InputStream is = new ByteArrayInputStream(body)) {//java9新特性try升级 自动关闭流
+                    //java9新特性try升级 自动关闭流
+                    if (body == null) {
+                        return null;
+                    }
+                    try (final InputStream is = new ByteArrayInputStream(body)) {
                         inputStream = is;
                     }
                 } else {
@@ -1209,7 +1222,8 @@ public class ExcelImportExportUtils {
                         // 是相对路径，给他转为绝对路径
                         File directory = new File("");//设定为当前文件夹
                         String currentAbsolutePath = directory.getAbsolutePath();
-                        resourcePath = currentAbsolutePath + "/" + split[1];// 得到新的绝对路径
+                        // 得到新的绝对路径
+                        resourcePath = currentAbsolutePath + "/" + split[1];
                     }
                     // 绝对路径
                     inputStream = new FileInputStream(resourcePath);

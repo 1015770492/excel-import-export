@@ -15,7 +15,6 @@ import java.math.BigDecimal;
 @ExcelTableHeader(height = 4, tableName = "区域季度数据", resource = "path://src/test/java/top/yumbo/test/excel/2.xlsx")
 public class ExportForQuarter {
 
-
     /**
      * 年份，为了避免暴露一些隐秘消息故字段都采用了w命名，防止泄露机密。不影响结果
      */

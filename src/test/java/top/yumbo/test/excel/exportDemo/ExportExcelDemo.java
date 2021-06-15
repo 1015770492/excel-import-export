@@ -21,14 +21,14 @@ public class ExportExcelDemo {
          * 得到List集合
          */
         System.out.println("=====导入季度数据======");
-        String areaQuarter = "src/test/java/top/yumbo/test/excel/2.xlsx";
+        String areaQuarter = "src/test/java/top/yumbo/test/excel/2_mid.xlsx";
 //        String areaQuarter = "D:/季度数据-原样式导出6000.xlsx";
         final long start1 = System.currentTimeMillis();
         final List<ExportForQuarter> quarterList = ExcelImportExportUtils.importExcelForXlsx(new FileInputStream(areaQuarter), ExportForQuarter.class,30000);
         final long end1 = System.currentTimeMillis();
         System.out.println("数据量" + quarterList.size() + "条，导入耗时" + (end1 - start1) + "毫秒");
 //        quarterList.forEach(System.out::println);
-        exportHighLight(quarterList, 3000);
+//        exportHighLight(quarterList, 3000);
 
         /**
          * 将其导出
