@@ -51,6 +51,12 @@ import java.util.regex.Pattern;
  */
 public class ExcelImportExportUtils {
 
+    private static ForkJoinPool pool = new ForkJoinPool(4);
+
+    // 更新线程池
+    public static void setPool(ForkJoinPool pool) {
+        ExcelImportExportUtils.pool = pool;
+    }
 
     //表头信息
     private enum TableEnum {
@@ -67,6 +73,22 @@ public class ExcelImportExportUtils {
         FONT_NAME, FONT_SIZE, BG_COLOR, TEXT_ALIGN, LOCKED, HIDDEN, BOLD,
         VERTICAL_ALIGN, WRAP_TEXT, STYLES,
         FORE_COLOR, ROTATION, FILL_PATTERN, AUTO_SHRINK, TOP, BOTTOM, LEFT, RIGHT
+    }
+
+    /**
+     * 用于读取多个sheet
+     * 读取sheet中的数据为List，默认粒度10_0000
+     */
+    public static <T> List<T> importExcel(Sheet sheet, Class<T> tClass) throws Exception {
+        return sheetToList(sheet, tClass, 100000);
+    }
+
+    /**
+     * 用于读取多个sheet
+     * 读取sheet中的数据为List,带任务粒控制因子threshold
+     */
+    public static <T> List<T> importExcel(Sheet sheet, Class<T> tClass, int threshold) throws Exception {
+        return sheetToList(sheet, tClass, threshold);
     }
 
     /**
@@ -682,10 +704,10 @@ public class ExcelImportExportUtils {
             final long start = System.currentTimeMillis();
             // 总的数据
             final int length = list.size();
-            // 方式二。forkjoin
-            ForkJoinPool pool = new ForkJoinPool();
+
             if (threshold <= 0) {
-                threshold = 1000;
+                // 默认任务粒度
+                threshold = 100000;
             }
             //if (length > 1000000) {}
             // forkJoin线程池进行导出导出
@@ -707,12 +729,6 @@ public class ExcelImportExportUtils {
     }
 
 
-//    public static <T> void exportExcelRowHighLightRGBColor(List<T> list, FileOutputStream fileOutputStream, Function<T, Color> function) {
-//        byte[] rgb = {new Integer(212).byteValue(), 44, new Integer(144).byteValue()};
-//        final XSSFColor xssfColor = new XSSFColor(rgb, null);
-//
-//    }
-
     /**
      * (导入)将sheet解析成List类型的数据
      * （注意这里只是将单元格内容转换为了实体，具体字段可能还不是正确的例如 区域码应该是是具体的编码而不是XX市XX区）
@@ -722,7 +738,9 @@ public class ExcelImportExportUtils {
      * @return 只是将单元格内容转化为List
      */
     private static <T> List<T> sheetToList(Sheet sheet, Class<T> tClass, int threshold) throws Exception {
-
+        if (sheet == null) {
+            throw new NullPointerException("sheet不能为Null");
+        }
         sheet.getWorkbook().setActiveSheet(0);
         final JSONObject importInfoByClazz = getImportInfoByClazz(sheet, tClass);
         final Integer tableHeight = getTableHeight(getTableHeaderDescInfo(importInfoByClazz));
@@ -731,10 +749,9 @@ public class ExcelImportExportUtils {
         final int lastRowNum = sheet.getLastRowNum();
 
         final long start = System.currentTimeMillis();
-        // 方式二。forkjoin
-        ForkJoinPool pool = new ForkJoinPool();
+
         if (threshold <= 0) {
-            threshold = 1000;
+            threshold = 10000;
         }
         final ForkJoinImportTask<T> forkJoinAction = new ForkJoinImportTask<>(titleInfo, tClass, sheet, tableHeight, lastRowNum, threshold);
         // 执行任务

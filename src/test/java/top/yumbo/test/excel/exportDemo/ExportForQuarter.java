@@ -49,6 +49,6 @@ public class ExportForQuarter {
     @ExcelCellBind(title = "业务合作可协调性")
     private String w12;
     @ExcelCellBind(title = "系统部署情况")
-    private String w13;;
+    private String w13;
 
 }
