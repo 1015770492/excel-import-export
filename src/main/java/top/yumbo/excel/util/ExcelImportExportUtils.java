@@ -1533,8 +1533,7 @@ public class ExcelImportExportUtils {
      * @param exception  异常消息
      * @throws ClassCastException 转换异常抛出的异常消息
      */
-    private static Object cast(String inputValue, Class<?> aClass, String exception, String size) throws
-            ClassCastException {
+    private static Object cast(String inputValue, Class<?> aClass, String exception, String size) throws ClassCastException {
         Object obj = null;
         String value;
         if (StringUtils.hasText(inputValue)) {
