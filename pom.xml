@@ -60,12 +60,23 @@
         </repository>
     </distributionManagement>
     <dependencies>
-        <!--excel文件处理-->
-<!--        <dependency>-->
-<!--            <groupId>com.alibaba</groupId>-->
-<!--            <artifactId>easyexcel</artifactId>-->
-<!--            <version>2.2.6</version>-->
-<!--        </dependency>-->
+        <!-- jsr303 校验 -->
+        <dependency>
+            <groupId>org.hibernate</groupId>
+            <artifactId>hibernate-validator</artifactId>
+            <version>5.4.3.Final</version>
+        </dependency>
+        <dependency>
+            <groupId>javax.el</groupId>
+            <artifactId>javax.el-api</artifactId>
+            <version>3.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.glassfish.web</groupId>
+            <artifactId>javax.el</artifactId>
+            <version>2.2.6</version>
+        </dependency>
+
         <!-- 这里面只用到了StringUtils做字符串判空其它没啥用可以自己修改源码 -->
         <dependency>
             <groupId>org.springframework</groupId>
@@ -78,8 +89,6 @@
             <artifactId>poi-tl</artifactId>
             <version>1.9.1</version>
         </dependency>
-
-
         <!-- fastjson工具包 -->
         <dependency>
             <groupId>com.alibaba</groupId>

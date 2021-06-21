@@ -20,14 +20,14 @@ public class ImportForQuarter {
      * 年份，为了避免暴露一些隐秘消息故字段都采用了w命名，防止泄露机密。不影响结果
      */
     // 根据正则截取单元格内容关于年份的值。其中exportFormat是导出excel填充到单元格的内容
-    @ExcelCellBind(title = "时间", importPattern = "([0-9]{4})年", exportFormat = "$0年")
+    @ExcelCellBind(title = "时间", importPattern = "([0-9]{4})年")
     private Integer w1;
     // 根据正则截取季度的数值，exportPriority是导出的顺序默认值是0，目的是与相同的title进行拼串，得到导出完整的单元格信息。
     // 在本次案例中目的是为了拼串成  $0年$1季，其中的$0被字段w1的值替换，$1被字段w2的值替换
-    @ExcelCellBind(title = "时间", importPattern = "([1-4]{1})季", exportFormat = "第$1季", exportPriority = 1)
+    @ExcelCellBind(title = "时间", importPattern = "([1-4]{1})季")
     private Integer w2;
     // 下面的exportSplit是导出功能需要用到的
-    @ExcelCellBind(title = "地区", width = 2, exportSplit = ",", exportFormat = "$0,$1")
+    @ExcelCellBind(title = "地区", width = 2)
     private String w3;
     // 默认的异常消息就是格式不正确，如果在导入过程中出现不合法数据例如类型转换，单元格为空，会抛异常消息，提示你哪一行数据有问题
     @ExcelCellBind(title = "违约主体家数", exception = "格式不正确")

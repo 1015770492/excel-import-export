@@ -1,9 +1,11 @@
 package top.yumbo.test.excel.exportDemo;
 
+import com.alibaba.fastjson.JSONObject;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.IndexedColors;
 import top.yumbo.excel.entity.CellStyleBuilder;
 import top.yumbo.excel.util.ExcelImportExportUtils;
+import top.yumbo.test.excel.importDemo.ImportForQuarter;
 
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -21,14 +23,16 @@ public class ExportExcelDemo {
          * 得到List集合
          */
         System.out.println("=====导入季度数据======");
-        String areaQuarter = "src/test/java/top/yumbo/test/excel/2_big.xlsx";
+        String areaQuarter = "src/test/java/top/yumbo/test/excel/2.xlsx";
 //        String areaQuarter = "D:/季度数据-原样式导出6000.xlsx";
         final long start1 = System.currentTimeMillis();
-        final List<ExportForQuarter> quarterList = ExcelImportExportUtils.importExcelForXlsx(new FileInputStream(areaQuarter), ExportForQuarter.class,30000);
+        final List<ImportForQuarter> quarterList = ExcelImportExportUtils.importExcelForXlsx(new FileInputStream(areaQuarter), ImportForQuarter.class, 30000);
         final long end1 = System.currentTimeMillis();
         System.out.println("数据量" + quarterList.size() + "条，导入耗时" + (end1 - start1) + "毫秒");
-//        quarterList.forEach(System.out::println);
+        quarterList.forEach(System.out::println);
 //        exportHighLight(quarterList, 3000);
+        final List<ExportForQuarter> exportForQuarterList = JSONObject.parseArray(JSONObject.toJSONString(quarterList), ExportForQuarter.class);
+        exportDefault(exportForQuarterList, 3000);
 
         /**
          * 将其导出

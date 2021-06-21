@@ -18,6 +18,10 @@ import top.yumbo.excel.annotation.ExcelCellStyle;
 import top.yumbo.excel.annotation.ExcelTableHeader;
 import top.yumbo.excel.entity.CellStyleBuilder;
 
+import javax.validation.ConstraintViolation;
+import javax.validation.Validation;
+import javax.validation.Validator;
+import javax.validation.ValidatorFactory;
 import java.io.*;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
@@ -183,6 +187,8 @@ public class ExcelImportExportUtils {
     }
 
     /**
+     * 实用forkJoin进行导入
+     *
      * @param workbook  excel文件
      * @param tClass    泛型
      * @param threshold forkJoin粒度
@@ -314,7 +320,9 @@ public class ExcelImportExportUtils {
         private final Sheet sheet;
         private final int threshold;// 默认1万以后需要拆分
         private final JSONObject fieldInfo;// tableBody
-        private final Class<T> clazz;
+        private final Class<T> clazz; // 泛型
+        private static ValidatorFactory vf = Validation.buildDefaultValidatorFactory();
+        private static Validator validator = vf.getValidator();
 
 
         ForkJoinImportTask(JSONObject fieldInfo, Class<T> clazz, Sheet sheet, int start, int end, int threshold) {
@@ -327,7 +335,7 @@ public class ExcelImportExportUtils {
         }
 
         @Override
-        protected List<T> compute() throws ClassCastException {
+        protected List<T> compute() {
             int nums = end - start;// 计算有多少行数据
 
             if (nums <= threshold) {
@@ -352,11 +360,12 @@ public class ExcelImportExportUtils {
         /**
          * 解析从start到end行的数据转换为List
          */
-        private List<T> praseRowsToList() {
+        private List<T> praseRowsToList() throws RuntimeException {
             // 从表头描述信息得到表头的高
             boolean flag = false;// 是否是异常行
             String message = "";// 异常消息
-            final JSONArray result = new JSONArray();// 得到的所有数据结果
+            final ArrayList<T> result = new ArrayList<>();
+
             // 按行扫描excel表
             for (int i = start; i <= end; i++) {
                 final Row row = sheet.getRow(i);
@@ -406,7 +415,7 @@ public class ExcelImportExportUtils {
                                 value = patternConvert(pattern, value);
                                 castValue = cast(value, fieldType, message, size);
                             } catch (ClassCastException e) {
-                                throw new ClassCastException(message + e.getMessage());
+                                throw new RuntimeException(message + e.getMessage());
                             }
                         }
 
@@ -427,7 +436,14 @@ public class ExcelImportExportUtils {
                 // 判断这行数据是否正常
                 // 正常情况下count是等于length的，因为每个字段都需要处理
                 if (count == 0) {
-                    result.add(oneRow);// 正常情况下添加一条数据
+                    T t = JSONObject.parseObject(oneRow.toJSONString(), clazz);
+                    // 进行jsr303校验
+                    Set<ConstraintViolation<T>> set = validator.validate(t);
+                    for (ConstraintViolation<T> constraintViolation : set) {
+                        throw new RuntimeException("第" + oneRow.getBigInteger(CellEnum.ROW.name()) + "行出现异常：" + constraintViolation.getMessage());
+                    }
+                    result.add(t);// 正常情况下添加一条数据
+
                 } else if (count < length) {
                     flag = true;// 需要抛异常，因为存在不合法数据
                     break;// 非空行，并且遇到一行关键字段为null需要终止
@@ -436,9 +452,9 @@ public class ExcelImportExportUtils {
             }
             // 如果存在不合法数据抛异常
             if (flag) {
-                throw new ClassCastException(message);
+                throw new RuntimeException(message);
             }
-            return JSONObject.parseArray(result.toJSONString(), clazz);
+            return result;
         }
 
 
@@ -453,6 +469,8 @@ public class ExcelImportExportUtils {
         private final int threshold;// 默认1千以后需要拆分
         private final Function<T, IndexedColors> function;// 功能性函数
         private final JSONObject titleInfo;// 单元格标题列描述信息
+        private static ValidatorFactory vf = Validation.buildDefaultValidatorFactory();
+        private static Validator validator = vf.getValidator();
         final static ThreadLocal<HashMap<String, CellStyle>> cellStyleThreadLocal = new ThreadLocal<>();
 
         /**
@@ -476,7 +494,7 @@ public class ExcelImportExportUtils {
 
 
         @Override
-        protected Integer compute() throws ClassCastException {
+        protected Integer compute() throws RuntimeException {
             int length = end - start;
 
             if (length <= threshold) {
@@ -498,25 +516,32 @@ public class ExcelImportExportUtils {
         /**
          * 将集合数据填入表格
          */
-        private int subListFilledSheet() throws ClassCastException {
+        private int subListFilledSheet() throws RuntimeException {
             final int length = subList.size();
             //System.out.println("长度是:" + length + ",行号范围长度:" + (end - start + 1) + "。起始行号" + start + "，结束行号" + end);
 
             short index = IndexedColors.WHITE.getIndex();// 默认白色背景
             // 每一个子列表同一个cellStyle
             CellStyle cellStyle = getCellStyle(index);
+
             for (int i = 0; i < length; i++) {
                 int rowNum = start + i;
                 Row row = sheet.getRow(rowNum);
                 synchronized (sheet) {
                     if (sheet.getRow(rowNum) == null) {
-                        row = sheet.createRow(rowNum);// 创建一行
+                        // 创建一行,创建过程涉及到map的线程安全,故需要对sheet加锁
+                        row = sheet.createRow(rowNum);
                     }
                 }
 
-                AtomicReference<ClassCastException> exception = new AtomicReference<>();
+                AtomicReference<RuntimeException> exception = new AtomicReference<>();
                 // 遍历表身体信息
                 T t = subList.get(i);
+                // 进行jsr303校验数据
+                Set<ConstraintViolation<T>> set = validator.validate(t);
+                for (ConstraintViolation<T> constraintViolation : set) {
+                    throw new RuntimeException("第" + rowNum + "个数据出现异常：" + constraintViolation.getMessage() + ",原数据：" + t);
+                }
                 if (function != null) {
                     index = function.apply(t).getIndex();
                     cellStyle = getCellStyle(index);
@@ -573,7 +598,7 @@ public class ExcelImportExportUtils {
         /**
          * 将
          */
-        private void jsonToOneRow(Row row, JSONObject json, AtomicReference<ClassCastException> exception, CellStyle cellStyle) {
+        private void jsonToOneRow(Row row, JSONObject json, AtomicReference<RuntimeException> exception, CellStyle cellStyle) {
             for (Map.Entry<String, Object> entry : titleInfo.entrySet()) {
                 final String titleIdx = entry.getKey();
                 final Object v = entry.getValue();
@@ -654,7 +679,7 @@ public class ExcelImportExportUtils {
 
                         } else {
                             // 没有拆分词，本身需要拆分，抛异常
-                            exception.set(new ClassCastException(fieldName + "字段的注解上 缺少exportSplit拆分词"));
+                            exception.set(new RuntimeException(fieldName + "字段的注解上 缺少exportSplit拆分词"));
                         }
                     } else {
 
