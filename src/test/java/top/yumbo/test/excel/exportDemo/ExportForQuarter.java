@@ -1,6 +1,7 @@
 package top.yumbo.test.excel.exportDemo;
 
 import lombok.Data;
+import org.hibernate.validator.constraints.NotEmpty;
 import top.yumbo.excel.annotation.ExcelCellBind;
 import top.yumbo.excel.annotation.ExcelTableHeader;
 
@@ -31,6 +32,7 @@ public class ExportForQuarter {
     private Integer w2;
     // 下面的exportSplit是导出功能需要用到的
     @ExcelCellBind(title = "地区", width = 2, exportSplit = ",", exportFormat = "$0,$1")
+    @NotEmpty(message = "季度信息不能为空")
     private String w3;
     // 默认的异常消息就是格式不正确，如果在导入过程中出现不合法数据例如类型转换，单元格为空，会抛异常消息，提示你哪一行数据有问题
     @ExcelCellBind(title = "违约主体家数", exception = "格式不正确")
