@@ -528,20 +528,20 @@ public class ExcelImportExportUtils {
      * @param list         数据
      * @param outputStream 输出流
      */
-    public static <T> void exportSimpleExcel(List<T> list,TitleBuilders titleBuilders, OutputStream outputStream) throws Exception {
+    public static <T> void exportSimpleExcel(List<T> list, TitleBuilders titleBuilders, OutputStream outputStream) throws Exception {
         final Workbook workbook = new XSSFWorkbook();
         final Sheet sheet = workbook.createSheet();
         // 生成表头
-        ExcelImportExportUtils.generateTableHeader(sheet,titleBuilders);
+        ExcelImportExportUtils.generateTableHeader(sheet, titleBuilders);
         // 临时文件
-        String tempFile="temp.xlsx";
+        String tempFile = "temp.xlsx";
         final FileOutputStream fileOutputStream = new FileOutputStream(tempFile);
         // excel写入临时文件
         workbook.write(fileOutputStream);
         // 反过来获取输入流
         final FileInputStream fileInputStream = new FileInputStream(tempFile);
         // 调用导出excel
-        exportExcel(list,fileInputStream,outputStream);
+        exportExcel(list, fileInputStream, outputStream);
     }
 
     /**
@@ -791,6 +791,44 @@ public class ExcelImportExportUtils {
 
     }
 
+
+    /**
+     * 生成java常量类
+     */
+    public static void generateTitleBuilders(Sheet sheet, int titleRow) {
+        final int lastRowNum = sheet.getLastRowNum();
+        List<List<TitleBuilder>> titleList = new ArrayList<>();
+        // 先获取所有标题的索引和标题名称（行号根据list下标即可确定）
+        for (int i = 0; i < titleRow; i++) {
+            final Row row = sheet.getRow(i);
+            List<TitleBuilder> list = new ArrayList<>();
+            for (int j = 0; j < lastRowNum; j++) {
+                final Cell cell = row.getCell(j);
+                final String title = getStringCellValue(cell, cell.getCellType());
+                if (StringUtils.hasText(title)) {
+                    int index = j, height = i;
+                    // 找高度
+                    for (; height < titleRow; height++) {
+                        final String title2 = getStringCellValue(cell, cell.getCellType());
+                        if (StringUtils.hasText(title2)) {
+                            break;
+                        }
+                    }
+                    // 找宽度
+                    for (; index < lastRowNum; index++) {
+                        final String title2 = getStringCellValue(cell, cell.getCellType());
+                        if (StringUtils.hasText(title2)) {
+                            break;
+                        }
+                    }
+//                    list.add(TitleBuilder.builder().index(j).width().height(height).title(title));
+
+                }
+            }
+            titleList.add(list);
+        }
+//        sheet.getNumMergedRegions()
+    }
 
     /**
      * 根据输入流返回workbook
@@ -1164,6 +1202,20 @@ public class ExcelImportExportUtils {
             }
         }
         return index;
+    }
+
+    private static String getStringCellValue(Cell cell, CellType cellType) {
+        String str = "";
+        if (cell.getCellType() == CellType.STRING) {
+            str = cell.getStringCellValue();
+        } else if (cell.getCellType() == CellType.NUMERIC) {
+            str += cell.getNumericCellValue();
+        } else if (cell.getCellType() == CellType.BOOLEAN) {
+            str += cell.getBooleanCellValue();
+        } else if (cell.getCellType() == CellType.BLANK) {
+            str = "";
+        }
+        return str;
     }
 
     /**

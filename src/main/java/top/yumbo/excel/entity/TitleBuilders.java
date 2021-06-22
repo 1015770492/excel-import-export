@@ -16,6 +16,7 @@ public class TitleBuilders {
     // 每一行的标题
     private List<List<TitleBuilder>> titleList= new ArrayList<>();;
 
+    // 建造者模式得到一个自己
     public static TitleBuilders builder() {
         return new TitleBuilders();
     }
