@@ -43,12 +43,10 @@ public class ImportForQuarter {
     private String w7;
     @ExcelCellBind(title = "区域偿债统筹管理能力")
     private String w8;
-    @ExcelCellBind(title = "区域内私募可转债历史信用记录")
-    private String w9;
     @ExcelCellBind(title = "还款可协调性")
-    private String w10;
+    private String w9;
     @ExcelCellBind(title = "业务合作可协调性")
-    private String w12;
-    @ExcelCellBind(title = "系统部署情况")
-    private String w13;
+    private String w10;
+    @ExcelCellBind(title = "数财通系统部署情况")
+    private String w11;
 }

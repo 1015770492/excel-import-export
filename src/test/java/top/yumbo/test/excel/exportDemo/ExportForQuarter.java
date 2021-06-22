@@ -15,7 +15,7 @@ import java.math.BigDecimal;
  */
 @Data
 // 表头占4行，height，同时使用resource设置模板文件位置
-@ExcelTableHeader(height = 4, tableName = "区域季度数据", resource = "path://src/test/java/top/yumbo/test/excel/2.xlsx")
+@ExcelTableHeader(height = 4, tableName = "区域季度数据", resource = "https://yumbo-oss.oss-cn-shenzhen.aliyuncs.com/区域季度数据.xlsx?versionId=CAEQIhiBgMD8g9_K0RciIDZjNWRjMDE3MmU0YjQ4NzBiN2QzZWQ1Y2ZhZDg1NmU5")
 public class ExportForQuarter {
 
     /**
@@ -48,13 +48,11 @@ public class ExportForQuarter {
     private String w7;
     @ExcelCellBind(title = "区域偿债统筹管理能力")
     private String w8;
-    @ExcelCellBind(title = "区域内私募可转债历史信用记录")
-    private String w9;
     @ExcelCellBind(title = "还款可协调性")
-    private String w10;
+    private String w9;
     @ExcelCellBind(title = "业务合作可协调性")
-    private String w12;
-    @ExcelCellBind(title = "系统部署情况")
-    private String w13;
+    private String w10;
+    @ExcelCellBind(title = "数财通系统部署情况")
+    private String w11;
 
 }

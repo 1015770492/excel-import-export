@@ -3,9 +3,7 @@ package top.yumbo.excel.util;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -288,7 +286,6 @@ public class ExcelImportExportUtils {
          */
         private int subListFilledSheet() throws RuntimeException {
             final int length = subList.size();
-            //System.out.println("长度是:" + length + ",行号范围长度:" + (end - start + 1) + "。起始行号" + start + "，结束行号" + end);
 
             short index = IndexedColors.WHITE.getIndex();// 默认白色背景
             // 每一个子列表同一个cellStyle
@@ -366,7 +363,7 @@ public class ExcelImportExportUtils {
         }
 
         /**
-         * 将
+         * 将数据填入一行
          */
         private void jsonToOneRow(Row row, JSONObject json, AtomicReference<RuntimeException> exception, CellStyle cellStyle) {
             for (Map.Entry<String, Object> entry : titleInfo.entrySet()) {
@@ -375,7 +372,7 @@ public class ExcelImportExportUtils {
                 // 标题 索引
                 final int titleIndex = Integer.parseInt(titleIdx);
                 if (titleIndex < 0) {
-                    return;
+                    throw new RuntimeException("导出异常，请校验注解title值和模板标题是否一致，得到的标题索引为" + titleIdx + ".标题的信息是：" + v);
                 }
                 // 给这个 index单元格 填入 value
                 Cell cell = row.getCell(titleIndex);// 得到单元格
@@ -383,7 +380,6 @@ public class ExcelImportExportUtils {
                     cell = row.createCell(titleIndex);
                 }
                 cell.setCellStyle(cellStyle);
-
                 if (v instanceof JSONArray) {
                     // 多个字段合并成一个单元格内容
                     JSONArray array = (JSONArray) v;
@@ -403,6 +399,7 @@ public class ExcelImportExportUtils {
                         stringBuilder.append(s);
                     }
                     String value = stringBuilder.toString();// 得到了合并后的内容
+                    // 因为合并了多个字段所以肯定是字符串类型的
                     cell.setCellValue(value);
 
                 } else {
@@ -521,7 +518,6 @@ public class ExcelImportExportUtils {
     }
 
 
-
     /**
      * 通过注解信息得到模板文件
      * 导出excel（默认10000作为粒度，超过10000会使用forkJoin进行拆分任务处理）
@@ -622,6 +618,7 @@ public class ExcelImportExportUtils {
         System.out.println("forkJoin读转换耗时" + (end - start) + "毫秒");
         return result;
     }
+
     /**
      * 高亮行的方式导出
      *
@@ -704,6 +701,7 @@ public class ExcelImportExportUtils {
         }
         return sheet;
     }
+
     /**
      * 获取表头的高度
      */
@@ -725,8 +723,6 @@ public class ExcelImportExportUtils {
     private static Sheet getSheet(JSONObject fulledExcelDescriptionInfo) {
         return fulledExcelDescriptionInfo.getObject(TableEnum.SHEET.name(), Sheet.class);
     }
-
-
 
 
     /**
@@ -871,7 +867,7 @@ public class ExcelImportExportUtils {
      * @param sheet excel表格
      * @return 表格的信息，返回的tableBody中key是每一个标题的索引，value则是由字段信息
      */
-    private static JSONObject getExportInfo(Class<?> clazz, Sheet sheet) throws IOException, IllegalArgumentException {
+    private static JSONObject getExportInfo(Class<?> clazz, Sheet sheet) throws Exception {
         Field[] fields = clazz.getDeclaredFields();// 获取所有字段
         JSONObject tableHeader = new JSONObject();// 表中主体数据信息
         JSONObject tableBody = new JSONObject();// 表中主体数据信息
@@ -990,7 +986,7 @@ public class ExcelImportExportUtils {
      *
      * @param resourcePath 资源路径
      */
-    private static Workbook getWorkBookByResource(String resourcePath, String type) throws IOException, IllegalArgumentException {
+    private static Workbook getWorkBookByResource(String resourcePath, String type) throws Exception {
         String protoPattern = "(.*)://.*";// 得到协议名称
         final Pattern httpPattern = Pattern.compile(protoPattern);
         final Matcher matcher = httpPattern.matcher(resourcePath);
@@ -1025,14 +1021,9 @@ public class ExcelImportExportUtils {
                         resourcePath = currentAbsolutePath + "/" + split[1];
                     }
                     // 绝对路径
-                    //inputStream = new FileInputStream(resourcePath);
-                    inputStream = ExcelImportExportUtils.class.getResourceAsStream(split[1]);
+                    inputStream = new FileInputStream(resourcePath);
                 }
-                if ("xlsx".equals(type)) {
-                    return new XSSFWorkbook(inputStream);
-                } else {
-                    return new HSSFWorkbook(inputStream);
-                }
+                return getWorkBookByInputStream(inputStream);
             }
             throw new IllegalArgumentException("请带上协议头例如http://");
         } else {

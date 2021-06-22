@@ -63,6 +63,19 @@ public class ExportExcelDemo {
 
     }
 
+
+
+    private static int exportDefault(List<ExportForQuarter> quarterList, int threshold) throws Exception {
+        /**
+         * 原样式导出
+         */
+        final long start1 = System.currentTimeMillis();
+        ExcelImportExportUtils.exportExcel(quarterList, new FileOutputStream("D:/季度数据-原样式导出" + threshold + ".xlsx"), threshold);
+        final long end1 = System.currentTimeMillis();
+        System.out.println("原样式导出总共用了" + (end1 - start1) + "毫秒\n");
+        return threshold;
+    }
+
     private static void exportHighLight(List<ExportForQuarter> quarterList, int threshold) throws Exception {
         /**
          * 高亮行
@@ -86,18 +99,6 @@ public class ExportExcelDemo {
         final long end = System.currentTimeMillis();
         System.out.println("高亮行总共用了" + (end - start) + "毫秒\n");
     }
-
-    private static int exportDefault(List<ExportForQuarter> quarterList, int threshold) throws Exception {
-        /**
-         * 原样式导出
-         */
-        final long start1 = System.currentTimeMillis();
-        ExcelImportExportUtils.exportExcel(quarterList, new FileOutputStream("D:/季度数据-原样式导出" + threshold + ".xlsx"), threshold);
-        final long end1 = System.currentTimeMillis();
-        System.out.println("原样式导出总共用了" + (end1 - start1) + "毫秒\n");
-        return threshold;
-    }
-
     /**
      * 高亮行（断言方式高亮示例代码）
      * 高亮符合条件的行
