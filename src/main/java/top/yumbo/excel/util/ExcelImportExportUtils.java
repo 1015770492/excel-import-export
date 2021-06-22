@@ -4,6 +4,8 @@ package top.yumbo.excel.util;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -15,14 +17,14 @@ import top.yumbo.excel.annotation.ExcelCellBind;
 import top.yumbo.excel.annotation.ExcelCellStyle;
 import top.yumbo.excel.annotation.ExcelTableHeader;
 import top.yumbo.excel.entity.CellStyleBuilder;
+import top.yumbo.excel.entity.TitleBuilder;
+import top.yumbo.excel.entity.TitleBuilders;
 
 import javax.validation.ConstraintViolation;
 import javax.validation.Validation;
 import javax.validation.Validator;
 import javax.validation.ValidatorFactory;
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.text.ParseException;
@@ -520,6 +522,117 @@ public class ExcelImportExportUtils {
         return importExcel(getSheetByInputStream(inputStream, sheetIdx), tClass, threshold);
     }
 
+    /**
+     * 导出简单的excel文件
+     *
+     * @param list         数据
+     * @param outputStream 输出流
+     */
+    public static <T> void exportSimpleExcel(List<T> list,TitleBuilders titleBuilders, OutputStream outputStream) throws Exception {
+        final Workbook workbook = new XSSFWorkbook();
+        final Sheet sheet = workbook.createSheet();
+        // 生成表头
+        ExcelImportExportUtils.generateTableHeader(sheet,titleBuilders);
+        // 临时文件
+        String tempFile="temp.xlsx";
+        final FileOutputStream fileOutputStream = new FileOutputStream(tempFile);
+        // excel写入临时文件
+        workbook.write(fileOutputStream);
+        // 反过来获取输入流
+        final FileInputStream fileInputStream = new FileInputStream(tempFile);
+        // 调用导出excel
+        exportExcel(list,fileInputStream,outputStream);
+    }
+
+    /**
+     * 生成简单表头
+     *
+     * @param sheet         表格
+     * @param titleBuilders 表头信息
+     */
+    public static Sheet generateTableHeader(Sheet sheet, TitleBuilders titleBuilders) {
+        final Workbook workbook = sheet.getWorkbook();
+        final CellStyle cellStyle = workbook.createCellStyle();
+        final Font font = workbook.createFont();
+        font.setFontName("微软雅黑");
+        cellStyle.setFont(font);
+        cellStyle.setAlignment(HorizontalAlignment.CENTER);
+        cellStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+
+        final List<List<TitleBuilder>> titleList = titleBuilders.getTitleList();
+        // 初始化单元格
+        for (int i = 0; i < titleList.size(); i++) {
+            Row row = getRow(sheet, i);
+            AtomicInteger colLength = new AtomicInteger();
+            titleList.get(0).forEach(e -> {
+                colLength.addAndGet(e.getWidth());
+            });
+            for (int j = 0; j < colLength.get(); j++) {
+                createCell(row, j);
+            }
+        }
+        // 遍历多少行标题
+        for (int i = 0; i < titleList.size(); i++) {
+            Row row = getRow(sheet, i);
+            // 处理第i行标题
+            final List<TitleBuilder> list = titleList.get(i);
+            int nextIndex = 0;
+            for (int j = 0; j < list.size(); j++) {
+                final TitleBuilder titleBuilder = list.get(j);
+                // 获取索引和标题，宽度和高度
+                int index = titleBuilder.getIndex();
+                final String title = titleBuilder.getTitle();
+                final int width = titleBuilder.getWidth();
+                final int height = titleBuilder.getHeight();
+                if (nextIndex <= 0) {
+                    // 下一个索引 = 当前索引 也就是0 + 当前宽度
+                    nextIndex = index + width;
+                } else {
+                    // 得到新的当前索引
+                    index = nextIndex;
+                    titleBuilder.setIndex(index);// 同时更新一下
+                    // 下一个索引= 当前索引+当前宽度
+                    nextIndex = index + width;
+
+                }
+                // 得到当前索引位置的单元格
+                Cell cell = row.getCell(index);
+                if (cell == null) {
+                    cell = row.createCell(index);
+                }
+                cell.setCellValue(title);
+                if (width > 1 || height > 1) {
+                    final CellRangeAddress cellAddresses = new CellRangeAddress(i, i + height - 1, index, nextIndex - 1);
+                    // 合并单元格
+                    sheet.addMergedRegion(cellAddresses);
+                }
+                cell.setCellStyle(cellStyle);
+                // 调整宽度
+                final int lastColumnWidth = sheet.getColumnWidth(index);
+                final int size = title.getBytes().length;
+                if (lastColumnWidth < size * 200) {
+                    sheet.setColumnWidth(index, size * 200);
+                }
+            }
+        }
+
+        return sheet;
+    }
+
+    private static void createCell(Row row, int j) {
+        Cell cell = row.getCell(j);
+        if (cell == null) {
+            cell = row.createCell(j);
+        }
+    }
+
+    private static Row getRow(Sheet sheet, int i) {
+        Row row = sheet.getRow(i);
+        if (row == null) {
+            row = sheet.createRow(i);
+        }
+        return row;
+    }
 
     /**
      * 通过注解信息得到模板文件
@@ -684,12 +797,13 @@ public class ExcelImportExportUtils {
      *
      * @param inputStream excel的输入流
      */
-    private static Workbook getWorkBookByInputStream(InputStream inputStream) throws Exception {
+    public static Workbook getWorkBookByInputStream(InputStream inputStream) throws Exception {
         if (inputStream == null) {
             throw new NullPointerException("输入流不能为空");
         }
         return WorkbookFactory.create(inputStream);//可以读取xls格式或xlsx格式。
     }
+
 
     /**
      * 根据输入流返回sheet
@@ -697,7 +811,7 @@ public class ExcelImportExportUtils {
      * @param inputStream 输入流
      * @param idx         第几个sheet
      */
-    private static Sheet getSheetByInputStream(InputStream inputStream, int idx) throws Exception {
+    public static Sheet getSheetByInputStream(InputStream inputStream, int idx) throws Exception {
         final Workbook workbook = getWorkBookByInputStream(inputStream);
         final Sheet sheet = workbook.getSheetAt(idx);
         if (sheet == null) {
