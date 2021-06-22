@@ -4,7 +4,6 @@ package top.yumbo.excel.util;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
-import org.apache.poi.ss.formula.functions.T;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.http.HttpEntity;
@@ -45,11 +44,11 @@ import java.util.regex.Pattern;
  * @date 2021/5/21 21:51
  * <p>
  * 整体的设计思路：
- * 1、导入：list->jsonArray->sheet
- * 2、导出：sheet->jsonArray->list
- * 转换中需要用到的信息通过注解实现，
+ * 1、导入：sheet->JsonObject->jsr303校验->收集起来并且添加进list
+ * 2、导出：list->jsr303校验->填入数据（可以高亮行的填入）->sheet
+ * 设计思路
  * 对于导入：通过注解-> 得到字段和表格关系
- * 对于导出：通过注解-> 得到表头和表头关系
+ * 对于导出：通过注解-> 得到表头和字段关系
  * 自定义样式：使用java8的函数式编程思想，将设定样式的功能通过函数式接口抽离
  * 通过外部编码使样式的设置更加方便
  */
@@ -80,240 +79,8 @@ public class ExcelImportExportUtils {
     }
 
     /**
-     * 用于读取多个sheet
-     * 读取sheet中的数据为List，默认粒度10_0000
+     * 并发导入任务
      */
-    public static <T> List<T> importExcel(Sheet sheet, Class<T> tClass) throws Exception {
-        return sheetToList(sheet, tClass, 100000);
-    }
-
-    /**
-     * 用于读取多个sheet
-     * 读取sheet中的数据为List,带任务粒控制因子threshold
-     */
-    public static <T> List<T> importExcel(Sheet sheet, Class<T> tClass, int threshold) throws Exception {
-        return sheetToList(sheet, tClass, threshold);
-    }
-
-    /**
-     * 导入excel，默认导入xlsx文件
-     *
-     * @param inputStream 输入流
-     * @param tClass      泛型
-     */
-    public static <T> List<T> importExcel(InputStream inputStream, Class<T> tClass) throws Exception {
-        return importExcel(inputStream, null, tClass, 0);
-    }
-
-    /**
-     * 传入workbook不需要类型其他上面的
-     */
-    public static <T> List<T> importExcel(Workbook workbook, Class<T> tClass) throws Exception {
-        return sheetToList(workbook.getSheetAt(0), tClass, 100000);
-    }
-
-
-    /**
-     * 导入Excel数据
-     *
-     * @param workbook excel工作簿
-     * @param tClass   泛型
-     */
-    public static <T> List<T> importExcel(Workbook workbook, Class<T> tClass, String type) throws Exception {
-        if ("xls".equals(type)) {
-            return importExcelForXls(workbook, tClass);
-        } else {
-            return importExcelForXlsx(workbook, tClass);
-        }
-    }
-
-
-    /**
-     * 导入excel默认xlsx
-     *
-     * @param inputStream 输入流
-     * @param type        类型：xls、xlsx
-     * @param tClass      模板数据
-     * @return List类型的实体
-     */
-    public static <T> List<T> importExcel(InputStream inputStream, String type, Class<T> tClass, int threshold) throws Exception {
-        if ("xls".equals(type)) {
-            return importExcelForXls(inputStream, tClass, threshold);
-        } else {
-            return importExcelForXlsx(inputStream, tClass, threshold);
-        }
-    }
-
-    /**
-     * @param workbook  excel文件
-     * @param tClass    泛型
-     * @param type      类型
-     * @param threshold forkJoin粒度
-     */
-    public static <T> List<T> importExcel(Workbook workbook, Class<T> tClass, String type, int threshold) throws Exception {
-        if ("xls".equals(type)) {
-            return importExcelForXls(workbook, tClass, threshold);
-        } else {
-            return importExcelForXlsx(workbook, tClass, threshold);
-        }
-    }
-
-    /**
-     * 不使用forkJoin的方式导入
-     */
-    public static <T> List<T> importExcelForXlsx(InputStream inputStream, Class<T> tClass) throws Exception {
-        return importExcelForXlsx(inputStream, tClass, 100000);
-    }
-
-    /**
-     * 导入xlsx的文件
-     *
-     * @param inputStream 输入流
-     * @param tClass      泛型
-     */
-    public static <T> List<T> importExcelForXlsx(InputStream inputStream, Class<T> tClass, int threshold) throws Exception {
-        if (inputStream != null) {
-            return importExcelForXlsx(new XSSFWorkbook(inputStream), tClass, threshold);
-        } else {
-            return null;
-        }
-    }
-
-    /**
-     * 不使用forkJoin的方式进行导入
-     */
-    public static <T> List<T> importExcelForXlsx(Workbook workbook, Class<T> tClass) throws Exception {
-        return importExcelForXlsx(workbook, tClass, 100000);
-    }
-
-    /**
-     * 实用forkJoin进行导入
-     *
-     * @param workbook  excel文件
-     * @param tClass    泛型
-     * @param threshold forkJoin粒度
-     */
-    public static <T> List<T> importExcelForXlsx(Workbook workbook, Class<T> tClass, int threshold) throws Exception {
-        if (workbook != null) {
-            return sheetToList(workbook.getSheetAt(0), tClass, threshold);
-        } else {
-            return null;
-        }
-    }
-
-    /**
-     * xls文件
-     *
-     * @param inputStream xls文件输入流
-     * @param tClass      泛型
-     */
-    public static <T> List<T> importExcelForXls(InputStream inputStream, Class<T> tClass) throws Exception {
-        return importExcelForXls(inputStream, tClass, 100000);
-    }
-
-    /**
-     * 导入xls文件
-     *
-     * @param inputStream 输入流
-     * @param tClass      泛型
-     * @param threshold   设置forkJoin任务粒度
-     */
-    public static <T> List<T> importExcelForXls(InputStream inputStream, Class<T> tClass, int threshold) throws Exception {
-        if (inputStream != null) {
-            // 如果是wookbook的就不需要type
-            return importExcelForXls(new HSSFWorkbook(inputStream), tClass, threshold);
-        } else {
-            return null;
-        }
-    }
-
-    /**
-     * 导入xls文件
-     *
-     * @param workbook workbook
-     * @param tClass   泛型
-     */
-    public static <T> List<T> importExcelForXls(Workbook workbook, Class<T> tClass) throws Exception {
-        return importExcelForXls(workbook, tClass, 100000);
-    }
-
-    /**
-     * @param workbook  excel文件
-     * @param tClass    泛型
-     * @param threshold forkJoin任务粒度
-     */
-    public static <T> List<T> importExcelForXls(Workbook workbook, Class<T> tClass, int threshold) throws Exception {
-        if (workbook != null) {
-            return sheetToList(workbook.getSheetAt(0), tClass, threshold);
-        } else {
-            return null;
-        }
-    }
-
-
-    /**
-     * 导出excel（默认1000作为粒度，超过1000会使用forkJoin进行拆分任务处理）
-     *
-     * @param list         待导入的数据集合
-     * @param outputStream 导出的文件输出流
-     */
-    public static <T> void exportExcel(List<T> list, OutputStream outputStream) throws Exception {
-        exportExcel(list, outputStream, 1000);
-    }
-
-    /**
-     * 导出Excel,使用默认样式  （传入list 和 输出流）
-     *
-     * @param list         待导入的数据集合
-     * @param outputStream 导出的文件输出流
-     * @param threshold    任务粒度
-     */
-    public static <T> void exportExcel(List<T> list, OutputStream outputStream, int threshold) throws Exception {
-        exportExcelForType(list, null, null, outputStream, threshold);
-    }
-
-    /**
-     * 导出excel，在没有输入resource的情况下
-     * 默认的样式
-     */
-    public static <T> void exportExcelForType(List<T> list, InputStream inputStream, String type, OutputStream outputStream, int threshold) throws Exception {
-        exportExcelRowHighLight(list, inputStream, type, outputStream, null, threshold);
-    }
-
-    /**
-     * xls文件的导出
-     */
-    public static <T> void exportExcelForXls(List<T> list, InputStream inputStream, OutputStream outputStream, int threshold) throws Exception {
-        exportExcelRowHighLight(list, inputStream, "xls", outputStream, null, threshold);
-    }
-
-    /**
-     * xlsx文件的导出
-     */
-    public static <T> void exportExcelForXlsx(List<T> list, InputStream inputStream, OutputStream outputStream, int threshold) throws Exception {
-        exportExcelRowHighLight(list, inputStream, "xlsx", outputStream, null, threshold);
-    }
-
-    /**
-     * 多功能的导出，function为null就是默认的导出
-     * function不为null就是高亮行的导出
-     */
-    public static <T> void exportExcelRowHighLight(List<T> list, OutputStream outputStream, Function<T, IndexedColors> function) throws Exception {
-        exportExcelRowHighLight(list, outputStream, function, 1000);
-    }
-
-    /**
-     * 多功能的导出，function为null就是默认的导出
-     * function不为null就是高亮行的导出
-     *
-     * @param list         数据
-     * @param outputStream 导出的文件的输出流
-     * @param function     功能性函数，返回颜色值
-     */
-    public static <T> void exportExcelRowHighLight(List<T> list, OutputStream outputStream, Function<T, IndexedColors> function, int threshold) throws Exception {
-        exportExcelRowHighLight(list, null, null, outputStream, function, threshold);
-    }
-
     private static class ForkJoinImportTask<T> extends RecursiveTask<List<T>> {
         private final int start;
         private final int end;
@@ -460,6 +227,9 @@ public class ExcelImportExportUtils {
 
     }
 
+    /**
+     * 并发导出任务
+     */
     private static class ForkJoinExportTask<T> extends RecursiveTask<Integer> {
 
         private final int start;
@@ -700,59 +470,125 @@ public class ExcelImportExportUtils {
 
     }
 
-
     /**
-     * 高亮行的方式导出
-     *
-     * @param list         数据集合
-     * @param inputStream  excel输入流
-     * @param type         excel的版本，值是xls或xlsx
-     * @param outputStream 导出文件的输出流
-     * @param function     功能型函数，返回颜色
-     * @param threshold    forkJoin的条件因子，拆分任务的粒度
+     * 默认不超过10w行数据使用单线程读，否则将会采用forkjoin并行读
+     * 用于读取多个sheet
+     * 读取sheet中的数据为List，默认粒度10_0000
      */
-    public static <T> void exportExcelRowHighLight(List<T> list, InputStream inputStream, String type, OutputStream outputStream, Function<T, IndexedColors> function, int threshold) throws Exception {
-        if (list != null && list.size() > 0 && outputStream != null) {
-            final JSONObject exportInfo = getExportInfo(list.get(0).getClass());
-            final JSONObject titleInfo = getExcelBodyDescInfo(exportInfo);
-            Sheet sheet;
-            Workbook workbook;
-            if (inputStream != null && StringUtils.hasText(type)) {
-                workbook = getWorkBook(inputStream, type);
-                sheet = workbook.getSheetAt(0);
-            } else {
-                workbook = getWorkBook(exportInfo);
-                sheet = getSheet(exportInfo);
-            }
-            final Integer height = getTableHeight(getTableHeaderDescInfo(exportInfo));
-
-            final long start = System.currentTimeMillis();
-            // 总的数据
-            final int length = list.size();
-
-            if (threshold <= 0) {
-                // 默认任务粒度
-                threshold = 100000;
-            }
-            //if (length > 1000000) {}
-            // forkJoin线程池进行导出导出
-            final ForkJoinExportTask<T> forkJoinAction = new ForkJoinExportTask<>(list, titleInfo, sheet, height, length + height - 1, threshold, function);
-            // 执行任务
-            pool.invoke(forkJoinAction);
-
-            final long end = System.currentTimeMillis();
-
-            System.out.println("转换耗时" + (end - start) + "毫秒");
-            workbook.write(outputStream);
-            workbook.close();
-        } else if (list == null || list.size() == 0) {
-            throw new NullPointerException("list不能为null 或 list数据量不能为0");
-        } else {
-            throw new NullPointerException("输出流不能为空");
-        }
-
+    public static <T> List<T> importExcel(Sheet sheet, Class<T> tClass) throws Exception {
+        return sheetToList(sheet, tClass, 100000);
     }
 
+    /**
+     * 用于读取多个sheet
+     * 读取sheet中的数据为List,带任务粒控制因子threshold
+     */
+    public static <T> List<T> importExcel(Sheet sheet, Class<T> tClass, int threshold) throws RuntimeException {
+        return sheetToList(sheet, tClass, threshold);
+    }
+
+    /**
+     * 超过10w则启用并发导入
+     *
+     * @param inputStream excel的输入流
+     * @param tClass      泛型
+     */
+    public static <T> List<T> importExcel(InputStream inputStream, Class<T> tClass) throws Exception {
+        return importExcel(inputStream, 0, tClass, 100000);
+    }
+
+    /**
+     * 并发导入
+     *
+     * @param inputStream 传入的excel输入流
+     * @param tClass      泛型
+     * @param threshold   并发任务的颗粒度
+     */
+    public static <T> List<T> importExcel(InputStream inputStream, Class<T> tClass, int threshold) throws Exception {
+        return importExcel(inputStream, 0, tClass, threshold);
+    }
+
+    /**
+     * 传入待读取的excel文件输入流
+     *
+     * @param inputStream excel输入流
+     * @param sheetIdx    下标
+     * @param tClass      泛型
+     * @param threshold   并发控制因子
+     */
+    public static <T> List<T> importExcel(InputStream inputStream, int sheetIdx, Class<T> tClass, int threshold) throws Exception {
+        return importExcel(getSheetByInputStream(inputStream, sheetIdx), tClass, threshold);
+    }
+
+
+
+    /**
+     * 通过注解信息得到模板文件
+     * 导出excel（默认10000作为粒度，超过10000会使用forkJoin进行拆分任务处理）
+     *
+     * @param list         待导入的数据集合
+     * @param outputStream 导出的文件输出流
+     */
+    public static <T> void exportExcel(List<T> list, OutputStream outputStream) throws Exception {
+        listToSheetWithStyle(list, null, outputStream, null, 10000);
+    }
+
+
+    /**
+     * 导出Excel,使用默认样式  （传入list 和 输出流）
+     *
+     * @param list         待导入的数据集合
+     * @param outputStream 导出的文件输出流
+     * @param threshold    任务粒度
+     */
+    public static <T> void exportExcel(List<T> list, OutputStream outputStream, int threshold) throws Exception {
+        // 调用的还是高亮行的导出方法
+        listToSheetWithStyle(list, null, outputStream, null, threshold);
+    }
+
+    /**
+     * 传入模板文件的输入流进行导出
+     *
+     * @param list         数据
+     * @param inputStream  excel模板的输入流
+     * @param outputStream 返回的输出流
+     */
+    public static <T> void exportExcel(List<T> list, InputStream inputStream, OutputStream outputStream) throws Exception {
+        listToSheetWithStyle(list, inputStream, outputStream, null, 10000);
+    }
+
+    /**
+     * 并发导出
+     *
+     * @param list         数据
+     * @param inputStream  模板文件输入流
+     * @param outputStream 导出后的输出流
+     * @param threshold    并发粒度
+     */
+    public static <T> void exportExcel(List<T> list, InputStream inputStream, OutputStream outputStream, int threshold) throws Exception {
+        listToSheetWithStyle(list, inputStream, outputStream, null, threshold);
+    }
+
+    /**
+     * 多功能的导出，function为null就是默认的导出
+     * function不为null就是高亮行的导出
+     */
+    public static <T> void exportExcelRowHighLight(List<T> list, OutputStream outputStream, Function<T, IndexedColors> function) throws Exception {
+        listToSheetWithStyle(list, null, outputStream, function, 10000);
+    }
+
+    /**
+     * 多功能的导出，function为null就是默认的导出
+     * function不为null就是高亮行的导出
+     *
+     * @param list         数据
+     * @param outputStream 导出的文件的输出流
+     * @param function     功能性函数，返回颜色值
+     */
+    public static <T> void exportExcelRowHighLight(List<T> list, OutputStream outputStream, Function<T, IndexedColors> function, int threshold) throws Exception {
+        // 调用的还是高亮行导出
+        listToSheetWithStyle(list, null, outputStream, function, threshold);
+    }
 
     /**
      * (导入)将sheet解析成List类型的数据
@@ -762,7 +598,7 @@ public class ExcelImportExportUtils {
      * @param sheet  表单数据（带表头的）
      * @return 只是将单元格内容转化为List
      */
-    private static <T> List<T> sheetToList(Sheet sheet, Class<T> tClass, int threshold) throws Exception {
+    private static <T> List<T> sheetToList(Sheet sheet, Class<T> tClass, int threshold) throws RuntimeException {
         if (sheet == null) {
             throw new NullPointerException("sheet不能为Null");
         }
@@ -786,8 +622,88 @@ public class ExcelImportExportUtils {
         System.out.println("forkJoin读转换耗时" + (end - start) + "毫秒");
         return result;
     }
+    /**
+     * 高亮行的方式导出
+     *
+     * @param list         数据集合
+     * @param inputStream  excel输入流
+     * @param outputStream 导出文件的输出流
+     * @param function     功能型函数，返回颜色
+     * @param threshold    forkJoin的条件因子，拆分任务的粒度
+     */
+    private static <T> void listToSheetWithStyle(List<T> list, InputStream inputStream, OutputStream outputStream, Function<T, IndexedColors> function, int threshold) throws Exception {
+        if (list != null && list.size() > 0 && outputStream != null) {
+            Sheet sheet = null;
+            Workbook workbook;
+            // 一、首先得到excel的模板文件
+            // 1、如果存在输入流就从输入流中获取workbook和sheet
+            if (inputStream != null) {
+                workbook = WorkbookFactory.create(inputStream);//可以读取xls格式或xlsx格式。
+                sheet = workbook.getSheetAt(0);
+            }
+            // 二、得到必要的一些信息用于后续给sheet填充数据
+            // 2、传入的sheet如果是null则会从注解中获取模板并且返回必要的信息，如果不为null则会将它存入exportInfo对象中
+            final JSONObject exportInfo = getExportInfo(list.get(0).getClass(), sheet);
+            final JSONObject titleInfo = getExcelBodyDescInfo(exportInfo);
+            // 重新从Json对象中取出workbook和sheet
+            workbook = getWorkBook(exportInfo);
+            sheet = getSheet(exportInfo);
+            // 得到表头的高度
+            final Integer height = getTableHeight(getTableHeaderDescInfo(exportInfo));
+
+            final long start = System.currentTimeMillis();
+            // 总的数据量
+            final int length = list.size();
+
+            if (threshold <= 0) {
+                // 默认任务粒度
+                threshold = 100000;
+            }
+            // forkJoin线程池进行导出导出
+            final ForkJoinExportTask<T> forkJoinAction = new ForkJoinExportTask<>(list, titleInfo, sheet, height, length + height - 1, threshold, function);
+            // 执行任务
+            pool.invoke(forkJoinAction);
+
+            final long end = System.currentTimeMillis();
+
+            System.out.println("转换耗时" + (end - start) + "毫秒");
+            workbook.write(outputStream);
+            workbook.close();
+        } else if (list == null || list.size() == 0) {
+            throw new NullPointerException("list不能为null 或 list数据量不能为0");
+        } else {
+            throw new NullPointerException("输出流不能为空");
+        }
+
+    }
 
 
+    /**
+     * 根据输入流返回workbook
+     *
+     * @param inputStream excel的输入流
+     */
+    private static Workbook getWorkBookByInputStream(InputStream inputStream) throws Exception {
+        if (inputStream == null) {
+            throw new NullPointerException("输入流不能为空");
+        }
+        return WorkbookFactory.create(inputStream);//可以读取xls格式或xlsx格式。
+    }
+
+    /**
+     * 根据输入流返回sheet
+     *
+     * @param inputStream 输入流
+     * @param idx         第几个sheet
+     */
+    private static Sheet getSheetByInputStream(InputStream inputStream, int idx) throws Exception {
+        final Workbook workbook = getWorkBookByInputStream(inputStream);
+        final Sheet sheet = workbook.getSheetAt(idx);
+        if (sheet == null) {
+            throw new NullPointerException("序号为" + idx + "的sheet不存在");
+        }
+        return sheet;
+    }
     /**
      * 获取表头的高度
      */
@@ -802,30 +718,6 @@ public class ExcelImportExportUtils {
         return fulledDescInfo.getObject(TableEnum.WORK_BOOK.name(), Workbook.class);
     }
 
-    /**
-     * 根据输入流和type返回工作簿
-     */
-    private static Workbook getWorkBook(InputStream inputStream, String type) throws IllegalArgumentException, IOException {
-        if (inputStream != null) {
-            if ("xls".equals(type)) {
-                return new HSSFWorkbook(inputStream);
-            } else if ("xlsx".equals(type)) {
-                return new XSSFWorkbook(inputStream);
-            } else {
-                throw new IllegalArgumentException("type请传入xls或xlsx。输入的type=" + type);
-            }
-        }
-
-        throw new NullPointerException("输入流不能为空，无法创建workbook");
-    }
-
-    /**
-     * 根据输入流和type返回sheet
-     */
-    private static Sheet getSheet(InputStream inputStream, String type) throws IllegalArgumentException, IOException {
-        final Workbook workBook = getWorkBook(inputStream, type);
-        return workBook.getSheetAt(0);
-    }
 
     /**
      * 得到excel表格
@@ -835,15 +727,6 @@ public class ExcelImportExportUtils {
     }
 
 
-    /**
-     * list转JSONArray
-     * 返回 字段名称 -> 值 的键值对，后面根据字段名称得到值
-     *
-     * @param list 集合
-     */
-    private static JSONArray listToJSONArray(List<?> list) {
-        return JSONObject.parseArray(JSONObject.toJSONString(list));
-    }
 
 
     /**
@@ -866,128 +749,12 @@ public class ExcelImportExportUtils {
 
 
     /**
-     * 转换为excel数据转换为 JSONArray
-     */
-    private static JSONArray sheetToJSONArray(JSONObject allExcelDescData, Sheet sheet) throws Exception {
-        JSONArray result = new JSONArray();
-        // 表头描述信息
-        JSONObject tableHeader = getTableHeaderDescInfo(allExcelDescData);
-        // 表的身体描述
-        JSONObject tableBody = getExcelBodyDescInfo(allExcelDescData);
-        // 从表头描述信息得到表头的高
-        Integer headerHeight = tableHeader.getInteger(TableEnum.TABLE_HEADER_HEIGHT.name());
-        final int lastRowNum = sheet.getLastRowNum();
-        boolean flag = false;// 是否是异常行
-        String message = "";// 异常消息
-        // 按行扫描excel表
-        for (int i = headerHeight; i < lastRowNum; i++) {
-            Row row = sheet.getRow(i);  // 得到第i行数据
-            JSONObject oneRow = new JSONObject();// 一行数据
-            int rowNum = i + 1;// 真正excel看到的行号
-            oneRow.put(CellEnum.ROW.name(), rowNum);// 记录行号
-            int length = tableBody.keySet().size();// 得到length,也就是需要转换的
-            int count = 0;// 记录异常空字段次数，如果与length相等说明是空行
-            //将Row转换为JSONObject
-            for (Object entry : tableBody.values()) {
-                JSONObject rowDesc = (JSONObject) entry;
-
-                // 得到字段的索引位子
-                Integer index = rowDesc.getInteger(CellEnum.COL.name());
-                if (index < 0) {
-                    continue;
-                }
-                Integer width = rowDesc.getInteger(CellEnum.WIDTH.name());// 得到宽度，如果宽度不为1则需要进行合并多个单元格的内容
-
-                String fieldName = rowDesc.getString(CellEnum.FIELD_NAME.name());// 字段名称
-                String title = rowDesc.getString(CellEnum.TITLE_NAME.name());// 标题名称
-                String fieldType = rowDesc.getString(CellEnum.FIELD_TYPE.name());// 字段类型
-                String exception = rowDesc.getString(CellEnum.EXCEPTION.name());// 转换异常返回的消息
-                String size = rowDesc.getString(CellEnum.SIZE.name());// 得到规模
-                boolean nullable = rowDesc.getBoolean(CellEnum.NULLABLE.name());
-                String positionMessage = "异常：第" + rowNum + "行的,第" + (index + 1) + "列 ---标题：" + title + " -- ";
-
-                // 得到异常消息
-                message = positionMessage + exception;
-
-                // 获取合并的单元格值（合并后的结果，逗号分隔）
-                String value = getMergeString(row, index, width, fieldType);
-
-                // 获取正则表达式，如果有正则，则进行正则截取value（相当于从单元格中取部分）
-                String pattern = rowDesc.getString(CellEnum.PATTERN.name());
-                boolean hasText = StringUtils.hasText(value);
-                Object castValue = null;
-                // 默认字段不可以为空，如果注解过程设置为true则不抛异常
-                if (!nullable) {
-                    // 说明字段不可以为空
-                    if (!hasText) {
-                        // 字段不能为空结果为空，这个空字段异常计数+1。除非count==length，然后重新计数，否则就是一行异常数据
-                        count++;// 不为空字段异常计数+1
-                        continue;
-                    } else {
-                        try {
-                            // 单元格有内容,要么正常、要么异常直接抛不能返回null 直接中止
-                            value = patternConvert(pattern, value);
-                            castValue = cast(value, fieldType, message, size);
-                        } catch (Exception e) {
-                            throw new Exception(message + e.getMessage());
-                        }
-                    }
-
-                } else {
-                    // 字段可以为空 （要么正常 要么返回null不会抛异常）
-                    length--;
-                    try {
-                        // 单元格内容无关紧要。要么正常转换，要么返回null
-                        value = patternConvert(pattern, value);
-                        castValue = cast(value, fieldType, message, size);
-                    } catch (Exception e) {
-                        //castValue=null;// 本来初始值就是null
-                    }
-                }
-                // 默认添加为null，只有正常才添加正常，否则中途抛异常直接中止
-                oneRow.put(fieldName, castValue);// 添加数据
-            }
-            // 正常情况下count是等于length的，因为每个字段都需要处理
-            if (count == 0) {
-                result.add(oneRow);// 正常情况下添加一条数据
-            } else if (count < length) {
-                flag = true;// 需要抛异常，因为存在不合法数据
-                break;// 非空行，并且遇到一行关键字段为null需要终止
-            }
-            // 空行继续扫描,或者正常
-
-        }
-        // 如果存在不合法数据抛异常
-        if (flag) {
-            throw new Exception(message);
-        }
-
-        return result;
-    }
-
-
-    /**
-     * 返回Excel主体数据Body的描述信息
-     */
-    private static JSONObject getExcelBodyDescData(Class<T> clazz) {
-        JSONObject partDescData = getImportDescriptionByClazz(clazz);
-        return getExcelBodyDescInfo(partDescData);
-    }
-
-    /**
      * 从json中获取Excel身体部分数据
      */
     private static JSONObject getExcelBodyDescInfo(JSONObject fulledExcelDescData) {
         return fulledExcelDescData.getJSONObject(TableEnum.TABLE_BODY.name());
     }
 
-    /**
-     * 返回Excel头部Header的描述信息
-     */
-    private static JSONObject getExcelHeaderDescData(Class<T> clazz) {
-        JSONObject partDescData = getImportDescriptionByClazz(clazz);
-        return getTableHeaderDescInfo(partDescData);
-    }
 
     /**
      * 从json中获取Excel表头部分数据
@@ -1094,16 +861,6 @@ public class ExcelImportExportUtils {
         excelDescData.put(TableEnum.TABLE_HEADER.name(), tableHeader);// 将表头记录信息注入
         excelDescData.put(TableEnum.TABLE_BODY.name(), tableBody);// 将表的body记录信息注入
         return excelDescData;// 返回记录的所有信息
-    }
-
-
-    /**
-     * 获取导出的信息
-     *
-     * @param clazz 泛型
-     */
-    private static JSONObject getExportInfo(Class<?> clazz) throws Exception {
-        return getExportInfo(clazz, null);
     }
 
     /**
@@ -1268,7 +1025,8 @@ public class ExcelImportExportUtils {
                         resourcePath = currentAbsolutePath + "/" + split[1];
                     }
                     // 绝对路径
-                    inputStream = new FileInputStream(resourcePath);
+                    //inputStream = new FileInputStream(resourcePath);
+                    inputStream = ExcelImportExportUtils.class.getResourceAsStream(split[1]);
                 }
                 if ("xlsx".equals(type)) {
                     return new XSSFWorkbook(inputStream);
@@ -1282,77 +1040,6 @@ public class ExcelImportExportUtils {
         }
     }
 
-    /**
-     * 设置单元格样式，注解上注入的，如果注解上为空还会有一个默认的样式
-     */
-    private static void setCellStyle(Cell cell, JSONObject cellStyle) {
-        final String fontName = cellStyle.getString(CellStyleEnum.FONT_NAME.name());
-        final Short fontSize = cellStyle.getShort(CellStyleEnum.FONT_SIZE.name());
-        final Short bgColor = cellStyle.getShort(CellStyleEnum.BG_COLOR.name());
-        final Short foreColor = cellStyle.getShort(CellStyleEnum.FORE_COLOR.name());
-        final Short rotation = cellStyle.getShort(CellStyleEnum.ROTATION.name());
-        final boolean locked = cellStyle.getBooleanValue(CellStyleEnum.LOCKED.name());
-        final boolean wrapText = cellStyle.getBoolean(CellStyleEnum.WRAP_TEXT.name());
-        final boolean hidden = cellStyle.getBoolean(CellStyleEnum.HIDDEN.name());
-        final boolean bold = cellStyle.getBoolean(CellStyleEnum.BOLD.name());
-        final boolean shrink = cellStyle.getBoolean(CellStyleEnum.AUTO_SHRINK.name());
-
-        final HorizontalAlignment textAlign = cellStyle.getObject(CellStyleEnum.TEXT_ALIGN.name(), HorizontalAlignment.class);
-        final VerticalAlignment verticalAlignment = cellStyle.getObject(CellStyleEnum.VERTICAL_ALIGN.name(), VerticalAlignment.class);
-        final FillPatternType fillPatternType = cellStyle.getObject(CellStyleEnum.FILL_PATTERN.name(), FillPatternType.class);
-        final BorderStyle top = cellStyle.getObject(CellStyleEnum.TOP.name(), BorderStyle.class);
-        final BorderStyle bottom = cellStyle.getObject(CellStyleEnum.BOTTOM.name(), BorderStyle.class);
-        final BorderStyle left = cellStyle.getObject(CellStyleEnum.LEFT.name(), BorderStyle.class);
-        final BorderStyle right = cellStyle.getObject(CellStyleEnum.RIGHT.name(), BorderStyle.class);
-        setCellStyle(cell, fontName, fontSize, bold, locked, hidden, textAlign, bgColor, foreColor, rotation, verticalAlignment, fillPatternType, top, bottom, left, right, wrapText, shrink);
-    }
-
-    private static void setCellStyle(Cell cell,
-                                     String fontName, Short fontSize, Boolean bold, Boolean locked, Boolean hidden,
-                                     HorizontalAlignment textAlign,
-                                     Short bgColor, Short foreignColor,
-                                     Short rotation, VerticalAlignment verticalAlignment, FillPatternType fillPatternType,
-                                     BorderStyle top, BorderStyle bottom, BorderStyle left, BorderStyle right, Boolean wrapText,
-                                     Boolean autoShrink
-    ) {
-
-        CellStyle cellStyle = getCellStyle(cell.getSheet().getWorkbook(), fontName, (int) fontSize, bold, locked, hidden, textAlign, (int) bgColor, (int) foreignColor, (int) rotation, verticalAlignment, fillPatternType, top, bottom, left, right, wrapText, autoShrink);
-        cell.setCellStyle(cellStyle);
-    }
-
-    /**
-     * 创建一个单元格样式
-     *
-     * @param fontName          字体
-     * @param fontSize          字体大小
-     * @param locked            是否可编辑
-     * @param hidden            是否隐藏样式
-     * @param textAlign         水平对齐方式（居中）
-     * @param bgColor           背景颜色
-     * @param foreignColor      前景颜色
-     * @param rotation          文字旋转角度
-     * @param verticalAlignment 垂直对齐方式
-     * @param fillPatternType   填充图案
-     * @param top               上边框
-     * @param bottom            下边框
-     * @param left              左边框
-     * @param right             右边框
-     * @param wrapText          是否自动换行
-     * @param autoShrink        是否自动调整大小
-     */
-    private static CellStyle getCellStyle(Workbook workbook, String fontName, Integer fontSize, Boolean bold, Boolean locked, Boolean hidden, HorizontalAlignment textAlign,
-                                          Integer bgColor, Integer foreignColor,
-                                          Integer rotation, VerticalAlignment verticalAlignment, FillPatternType fillPatternType,
-                                          BorderStyle top, BorderStyle bottom, BorderStyle left, BorderStyle right, Boolean wrapText,
-                                          Boolean autoShrink
-    ) {
-        return CellStyleBuilder.builder().fontName(fontName).fontSize(fontSize).bold(bold).locked(locked)
-                .hidden(hidden).textAlign(textAlign).bgColor(bgColor).foregroundColor(foreignColor)
-                .rotation(rotation).verticalAlignment(verticalAlignment)
-                .fillPatternType(fillPatternType)
-                .top(top).bottom(bottom).left(left).right(right).wrapText(wrapText)
-                .autoShrink(autoShrink).build().getCellStyle(workbook);
-    }
 
     /**
      * 根据标题获取标题在excel中的下标位子

@@ -16,7 +16,7 @@ public class ImportBondDemo {
         System.out.println("=====导入年度数据======");
         String areaYear = "src/test/java/top/yumbo/test/excel/5.xlsx";
         final long start = System.currentTimeMillis();
-        final List<BIExcelResp> bList = ExcelImportExportUtils.importExcelForXlsx(new FileInputStream(areaYear), BIExcelResp.class,2000);
+        final List<BIExcelResp> bList = ExcelImportExportUtils.importExcel(new FileInputStream(areaYear), BIExcelResp.class,2000);
         final long end = System.currentTimeMillis();
         System.out.println("总共耗时"+(end-start)+"毫秒");
         System.out.println("总共有"+bList.size()+"条记录");

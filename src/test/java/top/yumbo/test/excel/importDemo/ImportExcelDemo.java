@@ -19,7 +19,7 @@ public class ImportExcelDemo {
 //        String areaYear = "src/test/java/top/yumbo/test/excel/1.xlsx";
         String areaYear = "src/test/java/top/yumbo/test/excel/1_big.xlsx";
         final long start = System.currentTimeMillis();
-        final List<ImportForYear> yearList = ExcelImportExportUtils.importExcelForXlsx(new FileInputStream(areaYear), ImportForYear.class,2000);
+        final List<ImportForYear> yearList = ExcelImportExportUtils.importExcel(new FileInputStream(areaYear), ImportForYear.class);
         final long end = System.currentTimeMillis();
         System.out.println("总共耗时"+(end-start)+"毫秒");
         System.out.println("总共有"+yearList.size()+"条记录");
@@ -29,7 +29,7 @@ public class ImportExcelDemo {
         final long start2 = System.currentTimeMillis();
 //        String areaQuarter = "src/test/java/top/yumbo/test/excel/2.xlsx";
         String areaQuarter = "src/test/java/top/yumbo/test/excel/2_big.xlsx";
-        final List<ImportForQuarter> quarterList = ExcelImportExportUtils.importExcelForXlsx(new FileInputStream(areaQuarter), ImportForQuarter.class,2000);
+        final List<ImportForQuarter> quarterList = ExcelImportExportUtils.importExcel(new FileInputStream(areaQuarter), ImportForQuarter.class,2000);
         final long end2 = System.currentTimeMillis();
         System.out.println("总共耗时"+(end-start)+"毫秒");
 //        quarterList.forEach(System.out::println);
