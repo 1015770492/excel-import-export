@@ -70,7 +70,7 @@ public class ExportExcelDemo {
          * 原样式导出
          */
         final long start1 = System.currentTimeMillis();
-        ExcelImportExportUtils.exportExcel(quarterList, new FileOutputStream("D:/季度数据-原样式导出" + threshold + ".xlsx"), threshold);
+        ExcelImportExportUtils.exportExcel(quarterList, new FileOutputStream("D:/季度数据-原样式导出" + threshold + ".xlsx"));
         final long end1 = System.currentTimeMillis();
         System.out.println("原样式导出总共用了" + (end1 - start1) + "毫秒\n");
         return threshold;

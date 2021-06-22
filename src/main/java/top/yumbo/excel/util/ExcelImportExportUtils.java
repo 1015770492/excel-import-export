@@ -4,6 +4,7 @@ package top.yumbo.excel.util;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import org.apache.poi.ss.usermodel.*;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -19,7 +20,9 @@ import javax.validation.ConstraintViolation;
 import javax.validation.Validation;
 import javax.validation.Validator;
 import javax.validation.ValidatorFactory;
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.text.ParseException;
@@ -666,6 +669,7 @@ public class ExcelImportExportUtils {
             System.out.println("转换耗时" + (end - start) + "毫秒");
             workbook.write(outputStream);
             workbook.close();
+            outputStream.close();
         } else if (list == null || list.size() == 0) {
             throw new NullPointerException("list不能为null 或 list数据量不能为0");
         } else {
@@ -1010,22 +1014,13 @@ public class ExcelImportExportUtils {
                     }
                 } else {
                     final String[] split = resourcePath.split("://");
-                    if (split[1].startsWith("/")) {
-                        // 绝对路径，直接使用
-                        resourcePath = split[1];
-                    } else {
-                        // 是相对路径，给他转为绝对路径
-                        File directory = new File("");//设定为当前文件夹
-                        String currentAbsolutePath = directory.getAbsolutePath();
-                        // 得到新的绝对路径
-                        resourcePath = currentAbsolutePath + "/" + split[1];
-                    }
-                    // 绝对路径
-                    inputStream = new FileInputStream(resourcePath);
+                    // 是相对路径，springboot环境下，打成jar也有效
+                    ClassPathResource classPathResource = new ClassPathResource(split[1]);
+                    inputStream = classPathResource.getInputStream();
                 }
                 return getWorkBookByInputStream(inputStream);
             }
-            throw new IllegalArgumentException("请带上协议头例如http://");
+            throw new IllegalArgumentException("请带上协议头例如http:// 或者 https://");
         } else {
             throw new IllegalArgumentException("资源地址不正确，配置的资源地址：" + resourcePath);
         }

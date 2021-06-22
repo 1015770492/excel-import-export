@@ -31,7 +31,7 @@ public @interface ExcelTableHeader {
      * http/https协议的以协议名开头，例如: https://top.yumbo/excel/template/1.xlsx
      * 本地文件使用 path:// 开头即可。
      *      绝对路径示例->例如：path:///D:/excel/template/1.xlsx
-     *      相对路径示例->例如：path://src/test/java/yumbo/test/excel/1.xlsx
+     *      相对路径示例->例如：path://templates/区域季度数据.xlsx
      */
     String resource() default "";
 
