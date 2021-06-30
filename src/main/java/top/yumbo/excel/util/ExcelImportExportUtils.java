@@ -524,15 +524,27 @@ public class ExcelImportExportUtils {
 
     /**
      * 导出简单的excel文件
+     * <p>
+     * 案例地址：https://github.com/1015770492/excel-import-export/blob/master/src/test/java/top/yumbo/test/excel/exportDemo/ExportSimpleExcelDemo.java
      *
      * @param list         数据
      * @param outputStream 输出流
      */
     public static <T> void exportSimpleExcel(List<T> list, TitleBuilders titleBuilders, OutputStream outputStream) throws Exception {
+        exportSimpleExcelHighLight(list, titleBuilders, outputStream, null);
+    }
+
+    /**
+     * @param list
+     * @param titleBuilders
+     * @param outputStream
+     * @param <T>
+     */
+    public static <T> void exportSimpleExcelHighLight(List<T> list, TitleBuilders titleBuilders, OutputStream outputStream, Function<T, IndexedColors> function) throws Exception {
         final Workbook workbook = new XSSFWorkbook();
         final Sheet sheet = workbook.createSheet();
         // 生成表头
-        ExcelImportExportUtils.generateTableHeader(sheet, titleBuilders);
+        generateTableHeader(sheet, titleBuilders);
         // 临时文件
         String tempFile = "temp.xlsx";
         final FileOutputStream fileOutputStream = new FileOutputStream(tempFile);
@@ -541,7 +553,7 @@ public class ExcelImportExportUtils {
         // 反过来获取输入流
         final FileInputStream fileInputStream = new FileInputStream(tempFile);
         // 调用导出excel
-        exportExcel(list, fileInputStream, outputStream);
+        listToSheetWithStyle(list, fileInputStream, outputStream, function, 100000);
     }
 
     /**
