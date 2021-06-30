@@ -6,6 +6,7 @@ import org.apache.poi.ss.usermodel.*;
 import org.springframework.util.StringUtils;
 import top.yumbo.excel.annotation.ExcelCellBind;
 import top.yumbo.excel.annotation.ExcelTableHeader;
+import top.yumbo.excel.annotation.MapEntry;
 
 import javax.validation.ConstraintViolation;
 import javax.validation.Validation;
@@ -66,7 +67,7 @@ public class ExcelImportUtils2 {
 
     // 单元格信息
     private enum CellEnum {
-        TITLE_NAME, FIELD_NAME, FIELD_TYPE, SIZE, PATTERN, NULLABLE, WIDTH, EXCEPTION, COL, ROW, SPLIT, PRIORITY, FORMAT, MAP_ENTRIES
+        TITLE_NAME, FIELD_NAME, FIELD_TYPE, SIZE, PATTERN, NULLABLE, WIDTH, EXCEPTION, COL, ROW, SPLIT, PRIORITY, FORMAT, MAP
     }
 
     /**
@@ -170,6 +171,7 @@ public class ExcelImportUtils2 {
                 String exception = fieldDesc.getString(CellEnum.EXCEPTION.name());// 转换异常返回的消息
                 String size = fieldDesc.getString(CellEnum.SIZE.name());// 得到规模
                 boolean nullable = fieldDesc.getBoolean(CellEnum.NULLABLE.name());
+                final JSONObject map = fieldDesc.getJSONObject(CellEnum.MAP.name());// 字典
                 String positionMessage = "第" + (i + 1) + "行,第" + (index + 1) + "列,标题：" + title;
 
                 // 得到异常消息
@@ -177,6 +179,10 @@ public class ExcelImportUtils2 {
 
                 // 获取合并的单元格值（合并后的结果，逗号分隔）
                 String value = getMergeString(row, index, width, fieldType);
+                if (map != null) {
+                    // 转换为字典项
+                    value = map.getString(value);
+                }
 
                 // 获取正则表达式，如果有正则，则进行正则截取value（相当于从单元格中取部分）
                 String pattern = fieldDesc.getString(CellEnum.PATTERN.name());
@@ -212,6 +218,7 @@ public class ExcelImportUtils2 {
                     }
                 }
                 // 默认添加为null，只有正常才添加正常，否则中途抛异常直接中止
+
                 oneRow.put(fieldName, castValue);// 添加数据
             }
             // 判断这行数据是否正常
@@ -302,6 +309,7 @@ public class ExcelImportUtils2 {
     private static <T> JSONObject getImportInfoByClazz(Sheet sheet, Class<T> tClass) {
         // 获取表格部分描述信息（根据泛型得到的）
         JSONObject partDescData = getImportDescriptionByClazz(tClass);
+        System.out.println(partDescData);
         // 根据相同标题填充index
         return filledTitleIndexBySheet(partDescData, sheet);
     }
@@ -334,6 +342,7 @@ public class ExcelImportUtils2 {
                     String title = annotationTitle.title();         // 获取标题，如果标题不存在则不进行处理
                     if (StringUtils.hasText(title)) {
 
+                        cellDesc.put(CellEnum.MAP.name(), getMapByMapEntries(field));// 字典映射
                         cellDesc.put(CellEnum.TITLE_NAME.name(), title);// 标题名称
                         cellDesc.put(CellEnum.FIELD_NAME.name(), field.getName());// 字段名称
                         cellDesc.put(CellEnum.FIELD_TYPE.name(), field.getType().getTypeName());// 字段的类型
@@ -356,6 +365,24 @@ public class ExcelImportUtils2 {
         excelDescData.put(TableEnum.TABLE_HEADER.name(), tableHeader);// 将表头记录信息注入
         excelDescData.put(TableEnum.TABLE_BODY.name(), tableBody);// 将表的body记录信息注入
         return excelDescData;// 返回记录的所有信息
+    }
+
+    /**
+     * 根据MapEntry注解得到字典映射，用于转换
+     */
+    private static JSONObject getMapByMapEntries(Field field) {
+        final MapEntry[] mapEntries = field.getDeclaredAnnotationsByType(MapEntry.class);
+        final JSONObject map = new JSONObject();
+        for (MapEntry mapEntry : mapEntries) {
+            if (mapEntry != null) {
+                map.put(mapEntry.key(), mapEntry.value());
+            }
+        }
+        if (map.size() == 0) {
+            // 没有注解的情况下返回null
+            return null;
+        }
+        return map;
     }
 
     /**
