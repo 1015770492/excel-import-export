@@ -1203,9 +1203,11 @@ public class ExcelImportExportUtils {
         int index = -1;
         // 扫描包含表头的那几行 记录需要记录的标题所在的索引列，填充INDEX
         for (int i = 0; i < scanRowNum; i++) {
-            Row row = sheet.getRow(i);// 得到第i行数据（在表头内）
+            Row row = sheet.getRow(i);
+            // 得到第i行数据（在表头内）
             // 遍历这行所有单元格，然后得到表头进行比较找到标题和注解上的titleName相同的单元格
-            for (Cell cell : row) {// 得到单元格内容（统一为字符串类型）
+            for (Cell cell : row) {
+                // 得到单元格内容（统一为字符串类型）
                 String titleName = getStringCellValue(cell, String.class.getTypeName());
                 // 如果标题相同找到了这单元格，获取单元格下标存入
                 if (title.equals(titleName)) {
@@ -1419,7 +1421,7 @@ public class ExcelImportExportUtils {
         }
         try {
             if (aClass == BigDecimal.class) {
-                obj = new BigDecimal(value).multiply(new BigDecimal(size));// 乘以规模
+                obj = new BigDecimal(value).multiply(new BigDecimal(size)).stripTrailingZeros();// 乘以规模
             } else if (aClass == String.class) {
                 obj = value;//直接返回字符串
             } else if (aClass == Integer.class) {

@@ -1,6 +1,7 @@
 package top.yumbo.test.excel.exportDemo;
 
 import com.alibaba.fastjson.JSONObject;
+import org.apache.poi.ss.formula.functions.T;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.IndexedColors;
 import top.yumbo.excel.entity.CellStyleBuilder;
@@ -18,21 +19,25 @@ import java.util.List;
  */
 public class ExportExcelDemo {
 
+
+
+
     public static void main(String[] args) throws Exception {
-        /**
-         * 得到List集合
-         */
-        System.out.println("=====导入季度数据======");
-        String areaQuarter = "src/test/java/top/yumbo/test/excel/2.xlsx";
-//        String areaQuarter = "D:/季度数据-原样式导出6000.xlsx";
-        final long start1 = System.currentTimeMillis();
-        final List<ImportForQuarter> quarterList = ExcelImportExportUtils.importExcel(new FileInputStream(areaQuarter), ImportForQuarter.class, 30000);
-        final long end1 = System.currentTimeMillis();
-        System.out.println("数据量" + quarterList.size() + "条，导入耗时" + (end1 - start1) + "毫秒");
-        quarterList.forEach(System.out::println);
-//        exportHighLight(quarterList, 3000);
-        final List<ExportForQuarter> exportForQuarterList = JSONObject.parseArray(JSONObject.toJSONString(quarterList), ExportForQuarter.class);
-        exportDefault(exportForQuarterList, 3000);
+
+//        /**
+//         * 得到List集合
+//         */
+//        System.out.println("=====导入季度数据======");
+//        String areaQuarter = "src/test/java/top/yumbo/test/excel/2.xlsx";
+////        String areaQuarter = "D:/季度数据-原样式导出6000.xlsx";
+//        final long start1 = System.currentTimeMillis();
+//        final List<ImportForQuarter> quarterList = ExcelImportExportUtils.importExcel(new FileInputStream(areaQuarter), ImportForQuarter.class, 30000);
+//        final long end1 = System.currentTimeMillis();
+//        System.out.println("数据量" + quarterList.size() + "条，导入耗时" + (end1 - start1) + "毫秒");
+//        quarterList.forEach(System.out::println);
+////        exportHighLight(quarterList, 3000);
+//        final List<ExportForQuarter> exportForQuarterList = JSONObject.parseArray(JSONObject.toJSONString(quarterList), ExportForQuarter.class);
+//        exportDefault(exportForQuarterList, 3000);
 
         /**
          * 将其导出
@@ -62,7 +67,6 @@ public class ExportExcelDemo {
 //        }
 
     }
-
 
 
     private static int exportDefault(List<ExportForQuarter> quarterList, int threshold) throws Exception {
@@ -99,6 +103,7 @@ public class ExportExcelDemo {
         final long end = System.currentTimeMillis();
         System.out.println("高亮行总共用了" + (end - start) + "毫秒\n");
     }
+
     /**
      * 高亮行（断言方式高亮示例代码）
      * 高亮符合条件的行
@@ -118,7 +123,6 @@ public class ExportExcelDemo {
         );
 
     }
-
 
 
 }
