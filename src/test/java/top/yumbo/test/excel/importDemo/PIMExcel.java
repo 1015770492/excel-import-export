@@ -14,6 +14,7 @@ import java.math.BigDecimal;
 @ExcelTableHeader(height = 1)
 public class PIMExcel {
 
+
     @ExcelCellBind(title = "*抵押人/所有权人")
     private String mortgagorIm;
 
@@ -69,7 +70,11 @@ public class PIMExcel {
     @ExcelFollowLogic(value = "在建工程")
     @ExcelCellBind(title = "*宗地面积", nullable = true)
     private BigDecimal patriarchalAreaIm;
-
+    // 换算成平方米
+    @MapEntry(key = "公顷", value = "10000")
+    @MapEntry(key = "平方公里", value = "1000000")
+    @MapEntry(key = "平方米", value = "1")
+    @MapEntry(key = "亩", value = "666.6666667")
     @ExcelCellBind(title = "*宗地面积单位", nullable = true)
     private String patriarchalAreaImSize;
 
@@ -95,6 +100,11 @@ public class PIMExcel {
 
     @ExcelCellBind(title = "*评估价值", nullable = true)
     private BigDecimal assessmenttitleIm;
+    @MapEntry(key = "元", value = "1")
+    @MapEntry(key = "万", value = "10000")
+    @MapEntry(key = "百万", value = "1000000")
+    @MapEntry(key = "千万", value = "10000000")
+    @MapEntry(key = "亿", value = "100000000")
     @ExcelCellBind(title = "*评估价值单位", nullable = true)
     private String assessmenttitleImSize;
 
