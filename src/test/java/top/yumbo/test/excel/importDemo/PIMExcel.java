@@ -60,7 +60,7 @@ public class PIMExcel {
     private String isgywybzz;
 
     @ExcelCellBind(title = "*房屋建筑面积", nullable = true)
-    @ExcelCheckNullLogic(values = {"8001302","8001303"}, follow = "mortgageSubjectTypeIm")
+    @ExcelCheckNullLogic(follow = "mortgageSubjectTypeIm", values = {"8001302", "8001303"})
     private BigDecimal buildingAreaIm;
 
     @MapEntry(key = "公顷", value = "10000")
@@ -68,9 +68,11 @@ public class PIMExcel {
     @MapEntry(key = "平方米", value = "1")
     @MapEntry(key = "亩", value = "666.6666667")
     @ExcelCellBind(title = "*房屋建筑面积单位", nullable = true)
+    @ExcelCheckNullLogic(follow = "mortgageSubjectTypeIm", values = {"8001302", "8001303"})
     private String buildingAreaImSize;
 
     @ExcelCellBind(title = "*房屋建筑面积单位", nullable = true)
+    @ExcelCheckNullLogic(follow = "mortgageSubjectTypeIm", values = {"8001302", "8001303"})
     private String buildingAreaImUnit;
 
     @ExcelCellBind(title = "*宗地面积", nullable = true)
@@ -83,6 +85,7 @@ public class PIMExcel {
     @MapEntry(key = "平方米", value = "1")
     @MapEntry(key = "亩", value = "666.6666667")
     @ExcelCellBind(title = "*宗地面积单位", nullable = true)
+    @ExcelCheckNullLogic(follow = "mortgageSubjectTypeIm", values = "8001301")
     private String patriarchalAreaImSize;
 
 

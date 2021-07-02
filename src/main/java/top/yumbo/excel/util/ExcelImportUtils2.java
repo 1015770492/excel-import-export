@@ -155,7 +155,6 @@ public class ExcelImportUtils2 {
             oneRow.put(CellEnum.ROW.name(), i + 1);// 记录行号
             int length = fieldInfo.keySet().size();// 有多少个字段要进行处理
             int count = 0;// 记录异常空字段次数，如果与size相等说明是空行
-            JSONObject reverseMap = null;// 字典值，中文含义的map
             //将Row转换为JSONObject
             for (Object entry : fieldInfo.values()) {
                 JSONObject fieldDesc = (JSONObject) entry;
@@ -273,7 +272,7 @@ public class ExcelImportUtils2 {
                                 ExcelCellBind titleAnnotation = field.getDeclaredAnnotation(ExcelCellBind.class);
                                 titleMap.getJSONObject(follow).forEach((title, reverseMap) -> {
                                     if (reverseMap != null) {
-                                        throw new RuntimeException("第" + row + "行，" + title + "的值为:" + ((JSONObject) reverseMap).getString(value) + "时，" + titleAnnotation.title() + " 值不能为空");
+                                        throw new RuntimeException("第" + row + "行，\"" + title + "\" 的值为:\"" + ((JSONObject) reverseMap).getString(value) + "\" 时，\"" + titleAnnotation.title() + "\" 值不能为空");
                                     }
                                 });
                             }
@@ -282,7 +281,7 @@ public class ExcelImportUtils2 {
 
                 }
                 // 不包含的话，将其置置为null清空,用于存数据库
-                data.put(follow, null);
+                data.put(field.getName(), null);
             }
         }
     }
