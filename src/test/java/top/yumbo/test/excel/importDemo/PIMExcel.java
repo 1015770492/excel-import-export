@@ -18,7 +18,6 @@ public class PIMExcel {
     @ExcelCellBind(title = "*抵押人/所有权人")
     private String mortgagorIm;
 
-    @ExcelMainLogic
     @MapEntry(key = "土地使用权", value = "8001301")
     @MapEntry(key = "不动产", value = "8001302")
     @MapEntry(key = "在建工程", value = "8001303")
@@ -61,16 +60,24 @@ public class PIMExcel {
     private String isgywybzz;
 
     @ExcelCellBind(title = "*房屋建筑面积", nullable = true)
-    private String buildingAreaIm;
+    @ExcelCheckNullLogic(values = {"8001302","8001303"}, follow = "mortgageSubjectTypeIm")
+    private BigDecimal buildingAreaIm;
+
+    @MapEntry(key = "公顷", value = "10000")
+    @MapEntry(key = "平方公里", value = "1000000")
+    @MapEntry(key = "平方米", value = "1")
+    @MapEntry(key = "亩", value = "666.6666667")
+    @ExcelCellBind(title = "*房屋建筑面积单位", nullable = true)
+    private String buildingAreaImSize;
 
     @ExcelCellBind(title = "*房屋建筑面积单位", nullable = true)
     private String buildingAreaImUnit;
 
-    @ExcelFollowLogic(value = "土地使用权")
-    @ExcelFollowLogic(value = "在建工程")
     @ExcelCellBind(title = "*宗地面积", nullable = true)
+    @ExcelCheckNullLogic(follow = "mortgageSubjectTypeIm", values = "8001301")
     private BigDecimal patriarchalAreaIm;
-    // 换算成平方米
+
+    // 换算成平方米,冗余字段用于单位换算，不存数据库
     @MapEntry(key = "公顷", value = "10000")
     @MapEntry(key = "平方公里", value = "1000000")
     @MapEntry(key = "平方米", value = "1")
@@ -78,37 +85,50 @@ public class PIMExcel {
     @ExcelCellBind(title = "*宗地面积单位", nullable = true)
     private String patriarchalAreaImSize;
 
-    @ExcelCellBind(title = "*抵押类型")
+
+    @ExcelCellBind(title = "*宗地面积单位", nullable = true)
+    @ExcelCheckNullLogic(follow = "mortgageSubjectTypeIm", values = "8001301")
     private String patriarchalAreaImUnit;
 
-    @ExcelCellBind(title = "*是否有评估价值")
     @MapEntry(key = "否", value = "0")
     @MapEntry(key = "是", value = "1")
-    private String isAssessmenttitleIm;
+    @ExcelCellBind(title = "*是否有评估价值")
+    private String isAssessmentValueIm;
 
     @ExcelCellBind(title = "*评估报告类型", nullable = true)
+    @ExcelCheckNullLogic(follow = "isAssessmentValueIm", values = "1")
     private String assessmentReportTypeIm;
 
     @ExcelCellBind(title = "*评估机构", nullable = true)
+    @ExcelCheckNullLogic(follow = "isAssessmentValueIm", values = "1")
     private String assessmentMechanismIm;
 
     @ExcelCellBind(title = "*评估报告名称", nullable = true)
+    @ExcelCheckNullLogic(follow = "isAssessmentValueIm", values = "1")
     private String assessmentReportNameIm;
 
     @ExcelCellBind(title = "*评估报告编号", nullable = true)
+    @ExcelCheckNullLogic(follow = "isAssessmentValueIm", values = "1")
     private String assessmentReportSnoIm;
 
+    @ExcelCheckNullLogic(follow = "isAssessmentValueIm", values = "1")
     @ExcelCellBind(title = "*评估价值", nullable = true)
-    private BigDecimal assessmenttitleIm;
+    private BigDecimal assessmentValueIm;
+    // 金额单位换算
     @MapEntry(key = "元", value = "1")
     @MapEntry(key = "万", value = "10000")
     @MapEntry(key = "百万", value = "1000000")
     @MapEntry(key = "千万", value = "10000000")
     @MapEntry(key = "亿", value = "100000000")
     @ExcelCellBind(title = "*评估价值单位", nullable = true)
-    private String assessmenttitleImSize;
+    private String assessmentValueImSize;
+
+    @ExcelCellBind(title = "*评估价值单位", nullable = true)
+    @ExcelCheckNullLogic(follow = "isAssessmentValueIm", values = "1")
+    private String assessmentValueImUnit;
 
     @ExcelCellBind(title = "*评估基准日", nullable = true)
+    @ExcelCheckNullLogic(follow = "isAssessmentValueIm", values = "1")
     private String assessmentBaseDateIm;
 
     @ExcelCellBind(title = "*权利性质")
@@ -131,5 +151,4 @@ public class PIMExcel {
 
     @ExcelCellBind(title = "*特殊说明", nullable = true)
     private String guaranteeRangeRemark;
-
 }

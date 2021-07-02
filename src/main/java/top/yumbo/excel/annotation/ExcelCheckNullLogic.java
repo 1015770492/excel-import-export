@@ -10,11 +10,15 @@ import java.lang.annotation.*;
  */
 @Target({ElementType.FIELD})
 @Retention(RetentionPolicy.RUNTIME)
-@Repeatable(ExcelFollowLogics.class)
-public @interface ExcelFollowLogic {
+public @interface ExcelCheckNullLogic {
 
     /**
-     * 从逻辑
+     * 字段名称
      */
-    String value() default "0";
+    String follow() default "";
+
+    /**
+     * follow字段的值为value时必填
+     */
+    String[] values() default {};
 }

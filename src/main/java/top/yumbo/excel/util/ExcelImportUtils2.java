@@ -5,6 +5,7 @@ import com.alibaba.fastjson.JSONObject;
 import org.apache.poi.ss.usermodel.*;
 import org.springframework.util.StringUtils;
 import top.yumbo.excel.annotation.ExcelCellBind;
+import top.yumbo.excel.annotation.ExcelCheckNullLogic;
 import top.yumbo.excel.annotation.ExcelTableHeader;
 import top.yumbo.excel.annotation.MapEntry;
 
@@ -62,7 +63,7 @@ public class ExcelImportUtils2 {
 
     //表头信息
     private enum TableEnum {
-        WORK_BOOK, SHEET, TABLE_NAME, TABLE_HEADER, TABLE_HEADER_HEIGHT, RESOURCE, TYPE, TABLE_BODY, PASSWORD
+        TABLE_NAME, TABLE_HEADER, TABLE_HEADER_HEIGHT, TABLE_BODY, TITLE_MAP, REVERSE_MAP
     }
 
     // 单元格信息
@@ -131,13 +132,13 @@ public class ExcelImportUtils2 {
 
         final int lastRowNum = sheet.getLastRowNum();
 
-        return praseRowsToList(tableHeight, lastRowNum, sheet, titleInfo, tClass);
+        return praseRowsToList(tableHeight, lastRowNum, sheet, titleInfo, importInfoByClazz.getJSONObject(TableEnum.TITLE_MAP.name()), tClass);
     }
 
     /**
      * 解析从start到end行的数据转换为List
      */
-    private static <T> List<T> praseRowsToList(int start, int end, Sheet sheet, JSONObject fieldInfo, Class<T> tClass) throws Exception {
+    private static <T> List<T> praseRowsToList(int start, int end, Sheet sheet, JSONObject fieldInfo, JSONObject titleMap, Class<T> tClass) throws Exception {
         // 从表头描述信息得到表头的高
         boolean flag = false;// 是否是异常行
         String message, lastExceptionMsg = "";// 异常消息
@@ -154,6 +155,7 @@ public class ExcelImportUtils2 {
             oneRow.put(CellEnum.ROW.name(), i + 1);// 记录行号
             int length = fieldInfo.keySet().size();// 有多少个字段要进行处理
             int count = 0;// 记录异常空字段次数，如果与size相等说明是空行
+            JSONObject reverseMap = null;// 字典值，中文含义的map
             //将Row转换为JSONObject
             for (Object entry : fieldInfo.values()) {
                 JSONObject fieldDesc = (JSONObject) entry;
@@ -172,6 +174,8 @@ public class ExcelImportUtils2 {
                 String size = fieldDesc.getString(CellEnum.SIZE.name());// 得到规模
                 boolean nullable = fieldDesc.getBoolean(CellEnum.NULLABLE.name());
                 final JSONObject map = fieldDesc.getJSONObject(CellEnum.MAP.name());// 字典
+
+
                 String positionMessage = "第" + (i + 1) + "行,第" + (index + 1) + "列,标题：" + title;
 
                 // 得到异常消息
@@ -224,12 +228,14 @@ public class ExcelImportUtils2 {
             // 判断这行数据是否正常
             // 正常情况下count是等于length的，因为每个字段都需要处理
             if (count == 0) {
+                checkLogic(oneRow, tClass, titleMap, i + 1);// 处理完后oneRow就是符合条件的数据
                 T t = JSONObject.parseObject(oneRow.toJSONString(), tClass);
                 // 进行jsr303校验
                 Set<ConstraintViolation<T>> set = validator.validate(t);
                 for (ConstraintViolation<T> constraintViolation : set) {
                     throw new Exception("第" + oneRow.getBigInteger(CellEnum.ROW.name()) + "行数据异常：" + constraintViolation.getMessage());
                 }
+                // 接着校验主从逻辑关系
                 list.add(t);// 正常情况下添加一条数据
             } else if (count < length) {
                 flag = true;// 需要抛异常，因为存在不合法数据
@@ -242,6 +248,43 @@ public class ExcelImportUtils2 {
             throw new Exception(lastExceptionMsg);
         }
         return list;
+    }
+
+    /**
+     * 校验非空逻辑
+     */
+    private static <T> void checkLogic(JSONObject data, Class<T> tClass, JSONObject titleMap, int row) {
+        for (Field field : tClass.getDeclaredFields()) {
+            ExcelCheckNullLogic annotation = field.getDeclaredAnnotation(ExcelCheckNullLogic.class);
+            if (annotation != null) {
+                // 校验follow的字段值是否符合values中的值
+                String follow = annotation.follow();
+                // 字典项的值
+                String[] split = annotation.values();
+                for (String value : split) {
+                    if (StringUtils.hasText(follow)) {
+                        Object obj = data.get(follow);
+                        if (obj != null && value.equals(obj.toString())) {
+                            // 数据符合，接着校验当前field对应的值是否为null
+                            Object fieldValue = data.get(field.getName());
+                            if (fieldValue == null || !StringUtils.hasText(fieldValue.toString())) {
+                                // 值为null或者""情况下，需要跑异常
+                                // 得到follow字段上的标题，抛出提示信息。
+                                ExcelCellBind titleAnnotation = field.getDeclaredAnnotation(ExcelCellBind.class);
+                                titleMap.getJSONObject(follow).forEach((title, reverseMap) -> {
+                                    if (reverseMap != null) {
+                                        throw new RuntimeException("第" + row + "行，" + title + "的值为:" + ((JSONObject) reverseMap).getString(value) + "时，" + titleAnnotation.title() + " 值不能为空");
+                                    }
+                                });
+                            }
+                        }
+                    }
+
+                }
+                // 不包含的话，将其置置为null清空,用于存数据库
+                data.put(follow, null);
+            }
+        }
     }
 
     /**
@@ -328,21 +371,27 @@ public class ExcelImportUtils2 {
         JSONObject tableBody = new JSONObject();// 表中主体数据信息
         JSONObject tableHeader = new JSONObject();// 表中主体数据信息
 
+        // 收集字段-标题 的关系
+        JSONObject titleMap = new JSONObject();
         // 1、先得到表头信息
         final ExcelTableHeader tableHeaderAnnotation = clazz.getAnnotation(ExcelTableHeader.class);
         if (tableHeaderAnnotation != null) {
             tableHeader.put(TableEnum.TABLE_NAME.name(), tableHeaderAnnotation.tableName());// 表的名称
             tableHeader.put(TableEnum.TABLE_HEADER_HEIGHT.name(), tableHeaderAnnotation.height());// 表头的高度
-
             // 2、得到表的Body信息
             for (Field field : fields) {
                 final ExcelCellBind annotationTitle = field.getDeclaredAnnotation(ExcelCellBind.class);
+
                 if (annotationTitle != null) {// 找到自定义的注解
                     JSONObject cellDesc = new JSONObject();// 单元格描述信息
                     String title = annotationTitle.title();         // 获取标题，如果标题不存在则不进行处理
                     if (StringUtils.hasText(title)) {
+                        JSONObject mutiMap = getMapByMapEntries(field);
+                        cellDesc.put(CellEnum.MAP.name(), mutiMap.get(CellEnum.MAP.name()));// 字典映射
+                        JSONObject obj = new JSONObject();
+                        obj.put(title, mutiMap.get(TableEnum.REVERSE_MAP.name()));// 字典反转
+                        titleMap.put(field.getName(), obj);// 将反转Map存入titleMap中
 
-                        cellDesc.put(CellEnum.MAP.name(), getMapByMapEntries(field));// 字典映射
                         cellDesc.put(CellEnum.TITLE_NAME.name(), title);// 标题名称
                         cellDesc.put(CellEnum.FIELD_NAME.name(), field.getName());// 字段名称
                         cellDesc.put(CellEnum.FIELD_TYPE.name(), field.getType().getTypeName());// 字段的类型
@@ -363,6 +412,8 @@ public class ExcelImportUtils2 {
             }
         }
         excelDescData.put(TableEnum.TABLE_HEADER.name(), tableHeader);// 将表头记录信息注入
+
+        excelDescData.put(TableEnum.TITLE_MAP.name(), titleMap);// 将表头记录信息注入
         excelDescData.put(TableEnum.TABLE_BODY.name(), tableBody);// 将表的body记录信息注入
         return excelDescData;// 返回记录的所有信息
     }
@@ -372,17 +423,23 @@ public class ExcelImportUtils2 {
      */
     private static JSONObject getMapByMapEntries(Field field) {
         final MapEntry[] mapEntries = field.getDeclaredAnnotationsByType(MapEntry.class);
+        final JSONObject mutiMap = new JSONObject();
         final JSONObject map = new JSONObject();
+        final JSONObject reverseMap = new JSONObject();
+
         for (MapEntry mapEntry : mapEntries) {
             if (mapEntry != null) {
                 map.put(mapEntry.key(), mapEntry.value());
+                reverseMap.put(mapEntry.value(), mapEntry.key());
             }
         }
-        if (map.size() == 0) {
-            // 没有注解的情况下返回null
-            return null;
+        mutiMap.put(CellEnum.MAP.name(), map);
+        mutiMap.put(TableEnum.REVERSE_MAP.name(), reverseMap);
+        if (map.size() == 0 || reverseMap.size() == 0) {
+            mutiMap.put(CellEnum.MAP.name(), null);
+            mutiMap.put(TableEnum.REVERSE_MAP.name(), null);
         }
-        return map;
+        return mutiMap;
     }
 
     /**

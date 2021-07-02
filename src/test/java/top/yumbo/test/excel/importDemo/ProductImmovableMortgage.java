@@ -4,7 +4,7 @@ package top.yumbo.test.excel.importDemo;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import top.yumbo.excel.annotation.ExcelFollowLogic;
+import top.yumbo.excel.annotation.ExcelCheckNullLogic;
 import top.yumbo.excel.annotation.MapEntry;
 
 import java.io.Serializable;
@@ -20,9 +20,9 @@ import java.time.LocalDateTime;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class ProductImmovableMortgage implements Serializable{
+public class ProductImmovableMortgage implements Serializable {
 
-    private static final long serialVersionUID=1L;
+    private static final long serialVersionUID = 1L;
 
     /**
      * 主键Id
@@ -50,9 +50,9 @@ public class ProductImmovableMortgage implements Serializable{
      * 8001302	不动产
      * 8001303	在建工程
      */
-    @MapEntry(key = "土地使用权",value ="8001301")
-    @MapEntry(key = "不动产",value ="8001302")
-    @MapEntry(key = "在建工程",value ="8001303")
+    @MapEntry(key = "土地使用权", value = "8001301")
+    @MapEntry(key = "不动产", value = "8001302")
+    @MapEntry(key = "在建工程", value = "8001303")
     private String mortgageSubjectTypeIm;
     /**
      * 权证证号
@@ -75,16 +75,16 @@ public class ProductImmovableMortgage implements Serializable{
      * 8001609	抵押权
      * 8001610	法律规定需要登记的其他不动产权利
      */
-    @MapEntry(key = "集体土地使用权",value = "8001601")
-    @MapEntry(key = "房屋等建筑物、构筑物所有权",value = "8001602")
-    @MapEntry(key = "森林、林木所有权",value = "8001603")
-    @MapEntry(key = "耕地、林地、草地等土地承包经营权",value = "8001604")
-    @MapEntry(key = "建设用地使用权",value = "8001605")
-    @MapEntry(key = "宅基地使用权",value = "8001606")
-    @MapEntry(key = "海域使用权",value = "8001607")
-    @MapEntry(key = "地役权",value = "8001608")
-    @MapEntry(key = "抵押权",value = "8001609")
-    @MapEntry(key = "法律规定需要登记的其他不动产权利",value = "8001610")
+    @MapEntry(key = "集体土地使用权", value = "8001601")
+    @MapEntry(key = "房屋等建筑物、构筑物所有权", value = "8001602")
+    @MapEntry(key = "森林、林木所有权", value = "8001603")
+    @MapEntry(key = "耕地、林地、草地等土地承包经营权", value = "8001604")
+    @MapEntry(key = "建设用地使用权", value = "8001605")
+    @MapEntry(key = "宅基地使用权", value = "8001606")
+    @MapEntry(key = "海域使用权", value = "8001607")
+    @MapEntry(key = "地役权", value = "8001608")
+    @MapEntry(key = "抵押权", value = "8001609")
+    @MapEntry(key = "法律规定需要登记的其他不动产权利", value = "8001610")
     private String rightTypeIm;
     /**
      * 使用年限
@@ -97,13 +97,13 @@ public class ProductImmovableMortgage implements Serializable{
     /**
      * 是否受限(是/否，字典1022)
      */
-    @MapEntry(key = "否",value = "0")
-    @MapEntry(key = "是",value = "1")
+    @MapEntry(key = "否", value = "0")
+    @MapEntry(key = "是", value = "1")
     private String isLimitedIm;
     /**
      * 房屋建筑面积,(当【抵押标的类型】是房产【8001302】或在建工程【8001303】时，必填)
      */
-    @ExcelFollowLogic(value = "8001302,8001303")
+    @ExcelCheckNullLogic(values = {"8001302","8001303"}, follow = "mortgageSubjectTypeIm")
     private String buildingAreaIm;
     /**
      * 房屋建筑面积单位
@@ -112,6 +112,7 @@ public class ProductImmovableMortgage implements Serializable{
     /**
      * 宗地面积,(当【抵押标的类型】是土地使用权【8001301】时，必填)
      */
+    @ExcelCheckNullLogic(follow = "mortgageSubjectTypeIm", values = "8001301")
     private String patriarchalAreaIm;
     /**
      * 宗地面积单位
@@ -120,38 +121,44 @@ public class ProductImmovableMortgage implements Serializable{
     /**
      * 是否国营主要物业或标志性资产(是/否，字典1022)
      */
-    @MapEntry(key = "否",value = "0")
-    @MapEntry(key = "是",value = "1")
+    @MapEntry(key = "否", value = "0")
+    @MapEntry(key = "是", value = "1")
     private String isgywybzz;
     /**
      * 是否有评估价值(是/否，字典1022)
      */
-    @MapEntry(key = "否",value = "0")
-    @MapEntry(key = "是",value = "1")
+    @MapEntry(key = "否", value = "0")
+    @MapEntry(key = "是", value = "1")
     private String isAssessmentValueIm;
     /**
      * 评估报告类型(根据字典表-项目-评估报告类型取值，【是否有评估价值】为是时，必填)
      */
+    @ExcelCheckNullLogic(follow = "isAssessmentValueIm", values = "1")
     private String assessmentReportTypeIm;
     /**
      * 评估机构(【是否有评估价值】为是时，必填)
      */
+    @ExcelCheckNullLogic(follow = "isAssessmentValueIm", values = "1")
     private String assessmentMechanismIm;
     /**
      * 评估报告名称(【是否有评估价值】为是时，必填)
      */
+    @ExcelCheckNullLogic(follow = "isAssessmentValueIm", values = "1")
     private String assessmentReportNameIm;
     /**
      * 评估报告编号(【是否有评估价值】为是时，必填)
      */
+    @ExcelCheckNullLogic(follow = "isAssessmentValueIm", values = "1")
     private String assessmentReportSnoIm;
     /**
      * 评估价值，单位(【是否有评估价值】为是时，必填)
      */
+    @ExcelCheckNullLogic(follow = "isAssessmentValueIm", values = "1")
     private String assessmentValueIm;
     /**
      * 评估基准日(【是否有评估价值】为是时，必填)
      */
+    @ExcelCheckNullLogic(follow = "isAssessmentValueIm", values = "1")
     private String assessmentBaseDateIm;
     /**
      * 抵押类型(根据字典表-项目-抵押类型取值)
