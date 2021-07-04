@@ -66,12 +66,17 @@ public class PIMExcel {
     @MapEntry(key = "公顷", value = "10000")
     @MapEntry(key = "平方公里", value = "1000000")
     @MapEntry(key = "平方米", value = "1")
-    @MapEntry(key = "亩", value = "666.6666667")
+    @MapEntry(key = "亩", value = "666.66667")
     @ExcelCellBind(title = "*房屋建筑面积单位", nullable = true)
     @ExcelCheckNullLogic(follow = "mortgageSubjectTypeIm", values = {"8001302", "8001303"})
+    @AccountBigDecimalValue(follow = "buildingAreaIm",decimalFormat = "#.##")
     private String buildingAreaImSize;
 
     @ExcelCellBind(title = "*房屋建筑面积单位", nullable = true)
+    @MapEntry(key = "公顷", value = "Hectares")
+    @MapEntry(key = "平方公里", value = "kilometers")
+    @MapEntry(key = "平方米", value = "meters")
+    @MapEntry(key = "亩", value = "acres")
     @ExcelCheckNullLogic(follow = "mortgageSubjectTypeIm", values = {"8001302", "8001303"})
     private String buildingAreaImUnit;
 
@@ -83,12 +88,16 @@ public class PIMExcel {
     @MapEntry(key = "公顷", value = "10000")
     @MapEntry(key = "平方公里", value = "1000000")
     @MapEntry(key = "平方米", value = "1")
-    @MapEntry(key = "亩", value = "666.6666667")
+    @MapEntry(key = "亩", value = "666.66667")
     @ExcelCellBind(title = "*宗地面积单位", nullable = true)
     @ExcelCheckNullLogic(follow = "mortgageSubjectTypeIm", values = "8001301")
+    @AccountBigDecimalValue(follow = "patriarchalAreaIm",decimalFormat = "#.##")
     private String patriarchalAreaImSize;
 
-
+    @MapEntry(key = "公顷", value = "Hectares")
+    @MapEntry(key = "平方公里", value = "kilometers")
+    @MapEntry(key = "平方米", value = "meters")
+    @MapEntry(key = "亩", value = "acres")
     @ExcelCellBind(title = "*宗地面积单位", nullable = true)
     @ExcelCheckNullLogic(follow = "mortgageSubjectTypeIm", values = "8001301")
     private String patriarchalAreaImUnit;
@@ -124,9 +133,15 @@ public class PIMExcel {
     @MapEntry(key = "千万", value = "10000000")
     @MapEntry(key = "亿", value = "100000000")
     @ExcelCellBind(title = "*评估价值单位", nullable = true)
+    @AccountBigDecimalValue(follow = "assessmentValueIm",decimalFormat = "#.##")
     private String assessmentValueImSize;
 
     @ExcelCellBind(title = "*评估价值单位", nullable = true)
+    @MapEntry(key = "元", value = "One")
+    @MapEntry(key = "万", value = "TenThoursand")
+    @MapEntry(key = "百万", value = "Million")
+    @MapEntry(key = "千万", value = "TenMillion")
+    @MapEntry(key = "亿", value = "HundredMillion")
     @ExcelCheckNullLogic(follow = "isAssessmentValueIm", values = "1")
     private String assessmentValueImUnit;
 

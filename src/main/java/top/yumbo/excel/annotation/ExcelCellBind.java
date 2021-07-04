@@ -38,13 +38,14 @@ public @interface ExcelCellBind {
     String size() default "1";
 
     /**
-     * 正则截取单元格内容
+     * 正则截取单元格部分内容，只需要部分其它内容丢掉
      * 一个单元格中的部分内容，例如 2020年2季度，只想单独取出年、季度这两个数字
      */
     String importPattern() default "";
 
 
     /**
+     * 正则截取单元格内容，保留单元格内容，后面进行替换字典
      * 服务于replaceAllOrPart，如果使用了splitRegex，则会将内容切割进行replaceAllOrPart
      * 然后将将处理后的结果返回，然后再进行importPattern
      */

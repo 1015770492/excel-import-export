@@ -4,10 +4,7 @@ package top.yumbo.excel.util;
 import com.alibaba.fastjson.JSONObject;
 import org.apache.poi.ss.usermodel.*;
 import org.springframework.util.StringUtils;
-import top.yumbo.excel.annotation.ExcelCellBind;
-import top.yumbo.excel.annotation.ExcelCheckNullLogic;
-import top.yumbo.excel.annotation.ExcelTableHeader;
-import top.yumbo.excel.annotation.MapEntry;
+import top.yumbo.excel.annotation.*;
 
 import javax.validation.ConstraintViolation;
 import javax.validation.Validation;
@@ -17,6 +14,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
+import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -189,6 +187,7 @@ public class ExcelImportUtils2 {
                     if (StringUtils.hasText(splitRegex)) {
                         // 判断是否需要正则切割，有则将value进行切割处理
                         String[] split = value.split(splitRegex);
+                        HashSet<String> strings = new HashSet<>();
                         StringBuilder stringBuilder = new StringBuilder();
                         for (int j = 0; j < split.length; j++) {
                             stringBuilder.append(replaceAllOrReplacePart(split[j], map, containsReplaceAll));
@@ -245,6 +244,7 @@ public class ExcelImportUtils2 {
             // 正常情况下count是等于length的，因为每个字段都需要处理
             if (count == 0) {
                 checkLogic(oneRow, tClass, titleMap, i + 1);// 处理完后oneRow就是符合条件的数据
+                updateBigDecimalValue(oneRow, tClass); // 更新单位
                 T t = JSONObject.parseObject(oneRow.toJSONString(), tClass);
                 // 进行jsr303校验
                 Set<ConstraintViolation<T>> set = validator.validate(t);
@@ -267,15 +267,42 @@ public class ExcelImportUtils2 {
     }
 
     /**
+     * 根据单位进行更新值
+     */
+    private static <T> void updateBigDecimalValue(JSONObject oneRow, Class<T> tClass) {
+        for (Field field : tClass.getDeclaredFields()) {
+            AccountBigDecimalValue accountBigDecimalValue = field.getDeclaredAnnotation(AccountBigDecimalValue.class);
+            if (accountBigDecimalValue != null) {
+                String follow = accountBigDecimalValue.follow();
+
+                String fieldName = field.getName();// 本身的字段名称
+                BigDecimal bigDecimal = oneRow.getBigDecimal(follow);
+                String size = oneRow.getString(fieldName);
+                if (StringUtils.hasText(size)) {
+                    String decimalFormat = accountBigDecimalValue.decimalFormat();
+                    DecimalFormat df = new DecimalFormat();
+                    df.applyPattern(decimalFormat);
+                    String decimalValueStr = df.format(bigDecimal.multiply(new BigDecimal(size)).stripTrailingZeros());
+                    BigDecimal newValue = new BigDecimal(decimalValueStr);
+
+                    oneRow.put(follow, newValue);// 替换为新值
+                }
+            }
+        }
+    }
+
+    /**
      * 得到映射结果
+     * 大都情况下containsReplaceAll=true
+     * 如果containsReplaceAll=false，需要注意替换部分，必须MapEntry中本身的key不能包含，否则就会替换错误的字典项
      */
     private static String replaceAllOrReplacePart(String value, JSONObject map, Boolean containsReplaceAll) {
         // 转换为字典项
-        value=value.trim();// 去掉首尾多余空格等无实意符合
+        value = value.trim();// 去掉首尾多余空格等无实意符合
         if (containsReplaceAll) {
             // 是完全替换
             for (Map.Entry<String, Object> mapEntry : map.entrySet()) {
-                if (value.contains(mapEntry.getKey())) {
+                if (value.equals(mapEntry.getKey())) {
                     value = mapEntry.getValue().toString();
                     break;
                 }
@@ -304,10 +331,13 @@ public class ExcelImportUtils2 {
                 String follow = annotation.follow();
                 // 字典项的值
                 String[] split = annotation.values();
+                boolean needCheck = false;
                 for (String value : split) {
                     if (StringUtils.hasText(follow)) {
                         Object obj = data.get(follow);
                         if (obj != null && value.equals(obj.toString())) {
+                            // 需要进行校验，因为符合字典项
+                            needCheck = true;
                             // 数据符合，接着校验当前field对应的值是否为null
                             Object fieldValue = data.get(field.getName());
                             if (fieldValue == null || !StringUtils.hasText(fieldValue.toString())) {
@@ -319,12 +349,19 @@ public class ExcelImportUtils2 {
                                         throw new RuntimeException("第" + row + "行，\"" + title + "\" 的值为:\"" + ((JSONObject) reverseMap).getString(value) + "\" 时，\"" + titleAnnotation.title() + "\" 值不能为空");
                                     }
                                 });
+                            } else {
+                                // 不为null,说明校验通过了
+                                break;
                             }
                         }
                     }
 
                 }
-                // 不包含的话，将其置置为null清空,用于存数据库
+                if (needCheck) {
+                    // 符合字段项，并且字段不为null，通过处理下一个字段
+                    continue;
+                }
+                // 不包含，本身这个数据不需要收集，故置null
                 data.put(field.getName(), null);
             }
         }
