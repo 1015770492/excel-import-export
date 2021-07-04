@@ -19,4 +19,6 @@ public @interface MapEntry {
      * 值
      */
     String value() default "";
+
+
 }

@@ -11,7 +11,7 @@ import java.math.BigDecimal;
  * 不动资产导入excel请求
  */
 @Data
-@ExcelTableHeader(height = 1)
+@ExcelTableHeader(height = 2)
 public class PIMExcel {
 
 
@@ -30,17 +30,17 @@ public class PIMExcel {
     @ExcelCellBind(title = "*坐落")
     private String siteIm;
 
-    @MapEntry(key = "集体土地使用权", value = "8001601")
-    @MapEntry(key = "房屋等建筑物、构筑物所有权", value = "8001602")
-    @MapEntry(key = "森林、林木所有权", value = "8001603")
-    @MapEntry(key = "耕地、林地、草地等土地承包经营权", value = "8001604")
-    @MapEntry(key = "建设用地使用权", value = "8001605")
-    @MapEntry(key = "宅基地使用权", value = "8001606")
-    @MapEntry(key = "海域使用权", value = "8001607")
-    @MapEntry(key = "地役权", value = "8001608")
-    @MapEntry(key = "抵押权", value = "8001609")
-    @MapEntry(key = "法律规定需要登记的其他不动产权利", value = "8001610")
-    @ExcelCellBind(title = "*权利类型")
+    @MapEntry(key = "1", value = "8001601")
+    @MapEntry(key = "2", value = "8001602")
+    @MapEntry(key = "3", value = "8001603")
+    @MapEntry(key = "4", value = "8001604")
+    @MapEntry(key = "5", value = "8001605")
+    @MapEntry(key = "6", value = "8001606")
+    @MapEntry(key = "7", value = "8001607")
+    @MapEntry(key = "8", value = "8001608")
+    @MapEntry(key = "9", value = "8001609")
+    @MapEntry(key = "10", value = "8001610")
+    @ExcelCellBind(title = "*权利类型",splitRegex = ",")
     private String rightTypeIm;
 
     @ExcelCellBind(title = "*使用年限")

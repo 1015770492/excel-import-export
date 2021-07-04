@@ -43,6 +43,21 @@ public @interface ExcelCellBind {
      */
     String importPattern() default "";
 
+
+    /**
+     * 服务于replaceAllOrPart，如果使用了splitRegex，则会将内容切割进行replaceAllOrPart
+     * 然后将将处理后的结果返回，然后再进行importPattern
+     */
+    String splitRegex() default "";
+
+    /**
+     * 包含字典key就完全替换为value
+     * 例如：key=江西上饶, value=jx
+     * replaceAll=true，那么就会被替换为jx。
+     * 如果设置为false，只会替换字典部分内容，也就是变成：jx上饶
+     */
+    boolean replaceAll() default true;
+
     /**
      * 导出的字符串格式化填入，利用StringFormat.format进行字符串占位和替换
      */

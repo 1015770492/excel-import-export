@@ -68,7 +68,7 @@ public class ExcelImportUtils2 {
 
     // 单元格信息
     private enum CellEnum {
-        TITLE_NAME, FIELD_NAME, FIELD_TYPE, SIZE, PATTERN, NULLABLE, WIDTH, EXCEPTION, COL, ROW, SPLIT, PRIORITY, FORMAT, MAP
+        TITLE_NAME, FIELD_NAME, FIELD_TYPE, SIZE, PATTERN, NULLABLE, WIDTH, EXCEPTION, COL, ROW, SPLIT, PRIORITY, FORMAT, MAP, REPLACE_ALL_OR_PART, SPLIT_REGEX
     }
 
     /**
@@ -166,6 +166,9 @@ public class ExcelImportUtils2 {
                 }
                 Integer width = fieldDesc.getInteger(CellEnum.WIDTH.name());// 得到宽度，如果宽度不为1则需要进行合并多个单元格的内容
 
+                Boolean containsReplaceAll = fieldDesc.getBoolean(CellEnum.REPLACE_ALL_OR_PART.name());// 替换所有还是替换部分
+                String splitRegex = fieldDesc.getString(CellEnum.SPLIT_REGEX.name());// 进行正则切割
+
                 String fieldName = fieldDesc.getString(CellEnum.FIELD_NAME.name());// 字段名称
                 String title = fieldDesc.getString(CellEnum.TITLE_NAME.name());// 标题名称
                 String fieldType = fieldDesc.getString(CellEnum.FIELD_TYPE.name());// 字段类型
@@ -183,8 +186,22 @@ public class ExcelImportUtils2 {
                 // 获取合并的单元格值（合并后的结果，逗号分隔）
                 String value = getMergeString(row, index, width, fieldType);
                 if (map != null) {
-                    // 转换为字典项
-                    value = map.getString(value);
+                    if (StringUtils.hasText(splitRegex)) {
+                        // 判断是否需要正则切割，有则将value进行切割处理
+                        String[] split = value.split(splitRegex);
+                        StringBuilder stringBuilder = new StringBuilder();
+                        for (int j = 0; j < split.length; j++) {
+                            stringBuilder.append(replaceAllOrReplacePart(split[j], map, containsReplaceAll));
+                            if (j + 1 < split.length) {
+                                stringBuilder.append(splitRegex);
+                            }
+                        }
+                        // 将处理完后的内容重新赋值给value
+                        value = stringBuilder.toString();
+                    } else {
+                        // 没有内容就直接替换
+                        value = replaceAllOrReplacePart(value, map, containsReplaceAll);
+                    }
                 }
 
                 // 获取正则表达式，如果有正则，则进行正则截取value（相当于从单元格中取部分）
@@ -247,6 +264,33 @@ public class ExcelImportUtils2 {
             throw new Exception(lastExceptionMsg);
         }
         return list;
+    }
+
+    /**
+     * 得到映射结果
+     */
+    private static String replaceAllOrReplacePart(String value, JSONObject map, Boolean containsReplaceAll) {
+        // 转换为字典项
+        value=value.trim();// 去掉首尾多余空格等无实意符合
+        if (containsReplaceAll) {
+            // 是完全替换
+            for (Map.Entry<String, Object> mapEntry : map.entrySet()) {
+                if (value.contains(mapEntry.getKey())) {
+                    value = mapEntry.getValue().toString();
+                    break;
+                }
+            }
+
+        } else {
+            // 不是完全替换，只替换部分
+            for (Map.Entry<String, Object> mapEntry : map.entrySet()) {
+                if (value.contains(mapEntry.getKey())) {
+                    value = value.replaceAll(mapEntry.getKey(), mapEntry.getValue().toString());
+                    break;
+                }
+            }
+        }
+        return value;
     }
 
     /**
@@ -385,11 +429,16 @@ public class ExcelImportUtils2 {
                     JSONObject cellDesc = new JSONObject();// 单元格描述信息
                     String title = annotationTitle.title();         // 获取标题，如果标题不存在则不进行处理
                     if (StringUtils.hasText(title)) {
+
+                        // 获取字典映射
                         JSONObject mutiMap = getMapByMapEntries(field);
                         cellDesc.put(CellEnum.MAP.name(), mutiMap.get(CellEnum.MAP.name()));// 字典映射
                         JSONObject obj = new JSONObject();
                         obj.put(title, mutiMap.get(TableEnum.REVERSE_MAP.name()));// 字典反转
                         titleMap.put(field.getName(), obj);// 将反转Map存入titleMap中
+
+                        cellDesc.put(CellEnum.SPLIT_REGEX.name(), annotationTitle.splitRegex()); // 正则切割符
+                        cellDesc.put(CellEnum.REPLACE_ALL_OR_PART.name(), annotationTitle.replaceAll());// 是否包含替换所有,默认是替换所有
 
                         cellDesc.put(CellEnum.TITLE_NAME.name(), title);// 标题名称
                         cellDesc.put(CellEnum.FIELD_NAME.name(), field.getName());// 字段名称
@@ -434,6 +483,7 @@ public class ExcelImportUtils2 {
         }
         mutiMap.put(CellEnum.MAP.name(), map);
         mutiMap.put(TableEnum.REVERSE_MAP.name(), reverseMap);
+
         if (map.size() == 0 || reverseMap.size() == 0) {
             mutiMap.put(CellEnum.MAP.name(), null);
             mutiMap.put(TableEnum.REVERSE_MAP.name(), null);
