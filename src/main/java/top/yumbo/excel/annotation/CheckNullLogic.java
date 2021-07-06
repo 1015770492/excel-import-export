@@ -10,7 +10,7 @@ import java.lang.annotation.*;
  */
 @Target({ElementType.FIELD})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface ExcelCheckNullLogic {
+public @interface CheckNullLogic {
 
     /**
      * 字段名称
@@ -21,4 +21,19 @@ public @interface ExcelCheckNullLogic {
      * follow字段的值为value时必填
      */
     String[] values() default {};
+
+    /**
+     * 标题
+     */
+    String followTitle() default "";
+
+    /**
+     * 当前标题
+     */
+    String title() default "";
+
+    /**
+     * 消息
+     */
+    String message() default "";
 }

@@ -325,7 +325,7 @@ public class ExcelImportUtils2 {
      */
     private static <T> void checkLogic(JSONObject data, Class<T> tClass, JSONObject titleMap, int row) {
         for (Field field : tClass.getDeclaredFields()) {
-            ExcelCheckNullLogic annotation = field.getDeclaredAnnotation(ExcelCheckNullLogic.class);
+            CheckNullLogic annotation = field.getDeclaredAnnotation(CheckNullLogic.class);
             if (annotation != null) {
                 // 校验follow的字段值是否符合values中的值
                 String follow = annotation.follow();

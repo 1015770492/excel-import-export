@@ -4,7 +4,7 @@ package top.yumbo.test.excel.importDemo;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import top.yumbo.excel.annotation.ExcelCheckNullLogic;
+import top.yumbo.excel.annotation.CheckNullLogic;
 import top.yumbo.excel.annotation.MapEntry;
 
 import java.io.Serializable;
@@ -103,7 +103,7 @@ public class ProductImmovableMortgage implements Serializable {
     /**
      * 房屋建筑面积,(当【抵押标的类型】是房产【8001302】或在建工程【8001303】时，必填)
      */
-    @ExcelCheckNullLogic(values = {"8001302","8001303"}, follow = "mortgageSubjectTypeIm")
+    @CheckNullLogic(values = {"8001302","8001303"}, follow = "mortgageSubjectTypeIm")
     private String buildingAreaIm;
     /**
      * 房屋建筑面积单位
@@ -112,7 +112,7 @@ public class ProductImmovableMortgage implements Serializable {
     /**
      * 宗地面积,(当【抵押标的类型】是土地使用权【8001301】时，必填)
      */
-    @ExcelCheckNullLogic(follow = "mortgageSubjectTypeIm", values = "8001301")
+    @CheckNullLogic(follow = "mortgageSubjectTypeIm", values = "8001301")
     private String patriarchalAreaIm;
     /**
      * 宗地面积单位
@@ -133,32 +133,32 @@ public class ProductImmovableMortgage implements Serializable {
     /**
      * 评估报告类型(根据字典表-项目-评估报告类型取值，【是否有评估价值】为是时，必填)
      */
-    @ExcelCheckNullLogic(follow = "isAssessmentValueIm", values = "1")
+    @CheckNullLogic(follow = "isAssessmentValueIm", values = "1")
     private String assessmentReportTypeIm;
     /**
      * 评估机构(【是否有评估价值】为是时，必填)
      */
-    @ExcelCheckNullLogic(follow = "isAssessmentValueIm", values = "1")
+    @CheckNullLogic(follow = "isAssessmentValueIm", values = "1")
     private String assessmentMechanismIm;
     /**
      * 评估报告名称(【是否有评估价值】为是时，必填)
      */
-    @ExcelCheckNullLogic(follow = "isAssessmentValueIm", values = "1")
+    @CheckNullLogic(follow = "isAssessmentValueIm", values = "1")
     private String assessmentReportNameIm;
     /**
      * 评估报告编号(【是否有评估价值】为是时，必填)
      */
-    @ExcelCheckNullLogic(follow = "isAssessmentValueIm", values = "1")
+    @CheckNullLogic(follow = "isAssessmentValueIm", values = "1")
     private String assessmentReportSnoIm;
     /**
      * 评估价值，单位(【是否有评估价值】为是时，必填)
      */
-    @ExcelCheckNullLogic(follow = "isAssessmentValueIm", values = "1")
+    @CheckNullLogic(follow = "isAssessmentValueIm", values = "1")
     private String assessmentValueIm;
     /**
      * 评估基准日(【是否有评估价值】为是时，必填)
      */
-    @ExcelCheckNullLogic(follow = "isAssessmentValueIm", values = "1")
+    @CheckNullLogic(follow = "isAssessmentValueIm", values = "1")
     private String assessmentBaseDateIm;
     /**
      * 抵押类型(根据字典表-项目-抵押类型取值)
