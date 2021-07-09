@@ -106,6 +106,28 @@ title：表是单元格属性列的标题
 width：表示横向合并了多少个单元格
 exception：自定义的异常消息
 
+使用`ExcelImportUtils2.importExcel`进行导入带逻辑校验的测试案例
+单线程
+[带逻辑校验的导入](https://github.com/1015770492/excel-import-export/blob/master/src/test/java/top/yumbo/test/excel/importDemo/PIMImportDemo.java)
+多线程的ExcelImportExportUtils后期再加入，还有很多想法，所有先拆分出来，后面考虑到性能再加进去。
+```java
+package top.yumbo.test.excel.importDemo;
+
+import org.apache.poi.ss.usermodel.WorkbookFactory;
+import top.yumbo.excel.util.ExcelImportUtils2;
+import java.io.FileInputStream;
+import java.util.List;
+
+public class PIMImportDemo {
+    public static void main(String[] args) throws Exception{
+        String xlsx = "src/test/java/top/yumbo/test/excel/importDemo/PIM.xlsx";
+
+        final List<PIMExcel> pimExcels = ExcelImportUtils2.importExcel(WorkbookFactory.create(new FileInputStream(xlsx)).getSheetAt(0), PIMExcel.class);
+        pimExcels.forEach(System.out::println);
+    }
+}
+```
+
 #### 一、excel导入
 
 ##### 导入情景一、合并多个单元格内容
@@ -491,7 +513,6 @@ if (quarterList != null) {
 类型转换问题
 
 1. 日期类型：使用 LocalDate类型的
-
 2. 数值类型：建议用BigDecimal类型的。当然也支持（Integer、Long、Short、BigDecimal、Float、Double）
 3. 字符串类型：原封不动
 
