@@ -70,12 +70,12 @@ public class PIMExcel {
     @AccountBigDecimalValue(follow = "bAIM", decimalFormat = "#.##")
     private String bAIMSize;
 
-    @ExcelCellBind(title = "*房屋建筑面积单位", nullable = true)
     @MapEntry(key = "公顷", value = "Hectares")
     @MapEntry(key = "平方公里", value = "kilometers")
     @MapEntry(key = "平方米", value = "meters")
     @MapEntry(key = "亩", value = "acres")
     @CheckNullLogic(follow = "mSTIm", values = {"8001302", "8001303"})
+    @ExcelCellBind(title = "*房屋建筑面积单位", nullable = true)
     private String bAIMUnit;
 
     @ExcelCellBind(title = "*宗地面积", nullable = true)
