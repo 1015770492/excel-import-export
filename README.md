@@ -51,7 +51,7 @@ public class ExportForQuarter {
 
 当前项目修改maven仓库地址
 
-项目依赖地址：
+项目依赖地址：1.3.5
 
 ```xml
 <repositories>
@@ -70,7 +70,7 @@ public class ExportForQuarter {
     <dependency>
         <groupId>top.yumbo.excel</groupId>
         <artifactId>excel-import-export</artifactId>
-        <version>1.3.6</version>
+        <version>1.3.5</version>
     </dependency>
 
 </dependencies>
@@ -105,28 +105,6 @@ tableName：表的名称，相当于sheetName可以不填。
 title：表是单元格属性列的标题
 width：表示横向合并了多少个单元格
 exception：自定义的异常消息
-
-使用`ExcelImportUtils2.importExcel`进行导入带逻辑校验的测试案例
-单线程
-[带逻辑校验的导入](https://github.com/1015770492/excel-import-export/blob/master/src/test/java/top/yumbo/test/excel/importDemo/PIMImportDemo.java)
-多线程的ExcelImportExportUtils后期再加入，还有很多想法，所有先拆分出来，后面考虑到性能再加进去。
-```java
-package top.yumbo.test.excel.importDemo;
-
-import org.apache.poi.ss.usermodel.WorkbookFactory;
-import top.yumbo.excel.util.ExcelImportUtils2;
-import java.io.FileInputStream;
-import java.util.List;
-
-public class PIMImportDemo {
-    public static void main(String[] args) throws Exception{
-        String xlsx = "src/test/java/top/yumbo/test/excel/importDemo/PIM.xlsx";
-
-        final List<PIMExcel> pimExcels = ExcelImportUtils2.importExcel(WorkbookFactory.create(new FileInputStream(xlsx)).getSheetAt(0), PIMExcel.class);
-        pimExcels.forEach(System.out::println);
-    }
-}
-```
 
 #### 一、excel导入
 
@@ -253,7 +231,7 @@ public class PIMExcel {
 
 ![在这里插入图片描述](https://img-blog.csdnimg.cn/20210709095856212.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3FxXzQxODEzMjA4,size_16,color_FFFFFF,t_70)
 
-对应着，需要注意一下，nullable需要置为true，表示可以为空，因为默认是不允许为空的。然后通过`@CheckNullLogic`进行逻辑校验
+对应着，需要注意一下，nullable需要职位true，表示可以为空，因为默认是不允许为空的。然后通过`@CheckNullLogic`进行逻辑校验
 
 ```java
 @Data
@@ -513,6 +491,7 @@ if (quarterList != null) {
 类型转换问题
 
 1. 日期类型：使用 LocalDate类型的
+
 2. 数值类型：建议用BigDecimal类型的。当然也支持（Integer、Long、Short、BigDecimal、Float、Double）
 3. 字符串类型：原封不动
 
@@ -677,3 +656,50 @@ public @interface ExcelCellBind {
 ### 7、`@ExcelCellStyle`
 
 用于样式的设置，后续会加入，暂时没有做完整的设计
+
+## 内置Utils
+
+### CheckLogicUtils
+
+用于逻辑空校验，支持jsr303校验。
+
+实验方式：实体层加上jsr303校验，以及逻辑空校验注解`@CheckNullLogic`与Excel导入导出的逻辑校验相同，
+
+只是符合其他场景下的任意实体的逻辑校验。
+
+返回的对象是经过校验后的对象，注意返回的是一个新的对象！！
+
+```java
+request = CheckLogicUtils.checkNullLogicWithJSR303(request);
+```
+
+以前的写法
+
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20210710071536984.png)
+
+新的写法
+
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20210710071649392.png)
+
+### ExcelImportUtils2
+
+单线程方式，专门为导入设计的工具。
+
+结合配套注解使用，调用`ExcelImportUtils2.importExcel(Sheet sheet, Class<T> tClass)`方法即可返回List的实体数据
+
+返回的数据与T类型相同（即返回的是加了注解信息的excel模板类）然后可以通过
+
+`JSONObject.parseArray(JSON.toJSONString(返回的list),想要返回的实体.class)`或者
+
+遍历list，然后加入到
+
+`BeanUtils.copyProperties(excel模板实体类,想要返回的实体.class);`
+
+### ExcelImportExportUtils
+
+支持并发和单线程的导入和导出（可以带高亮）
+
+具体的测试代码，看单元测试中案例
+
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20210710072333293.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3FxXzQxODEzMjA4,size_16,color_FFFFFF,t_70)
+

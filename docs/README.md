@@ -656,3 +656,50 @@ public @interface ExcelCellBind {
 ### 7、`@ExcelCellStyle`
 
 用于样式的设置，后续会加入，暂时没有做完整的设计
+
+## 内置Utils
+
+### CheckLogicUtils
+
+用于逻辑空校验，支持jsr303校验。
+
+实验方式：实体层加上jsr303校验，以及逻辑空校验注解`@CheckNullLogic`与Excel导入导出的逻辑校验相同，
+
+只是符合其他场景下的任意实体的逻辑校验。
+
+返回的对象是经过校验后的对象，注意返回的是一个新的对象！！
+
+```java
+request = CheckLogicUtils.checkNullLogicWithJSR303(request);
+```
+
+以前的写法
+
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20210710071536984.png)
+
+新的写法
+
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20210710071649392.png)
+
+### ExcelImportUtils2
+
+单线程方式，专门为导入设计的工具。
+
+结合配套注解使用，调用`ExcelImportUtils2.importExcel(Sheet sheet, Class<T> tClass)`方法即可返回List的实体数据
+
+返回的数据与T类型相同（即返回的是加了注解信息的excel模板类）然后可以通过
+
+`JSONObject.parseArray(JSON.toJSONString(返回的list),想要返回的实体.class)`或者
+
+遍历list，然后加入到
+
+`BeanUtils.copyProperties(excel模板实体类,想要返回的实体.class);`
+
+### ExcelImportExportUtils
+
+支持并发和单线程的导入和导出（可以带高亮）
+
+具体的测试代码，看单元测试中案例
+
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20210710072333293.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3FxXzQxODEzMjA4,size_16,color_FFFFFF,t_70)
+
