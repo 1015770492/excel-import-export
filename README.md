@@ -51,7 +51,7 @@ public class ExportForQuarter {
 
 当前项目修改maven仓库地址
 
-项目依赖地址：1.3.5
+项目依赖地址：
 
 ```xml
 <repositories>
@@ -70,7 +70,7 @@ public class ExportForQuarter {
     <dependency>
         <groupId>top.yumbo.excel</groupId>
         <artifactId>excel-import-export</artifactId>
-        <version>1.3.5</version>
+        <version>1.3.6</version>
     </dependency>
 
 </dependencies>
@@ -253,7 +253,7 @@ public class PIMExcel {
 
 ![在这里插入图片描述](https://img-blog.csdnimg.cn/20210709095856212.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3FxXzQxODEzMjA4,size_16,color_FFFFFF,t_70)
 
-对应着，需要注意一下，nullable需要职位true，表示可以为空，因为默认是不允许为空的。然后通过`@CheckNullLogic`进行逻辑校验
+对应着，需要注意一下，nullable需要置为true，表示可以为空，因为默认是不允许为空的。然后通过`@CheckNullLogic`进行逻辑校验
 
 ```java
 @Data
