@@ -284,7 +284,6 @@ public class ExcelImportUtils2 {
                     df.applyPattern(decimalFormat);
                     String decimalValueStr = df.format(bigDecimal.multiply(new BigDecimal(size)).stripTrailingZeros());
                     BigDecimal newValue = new BigDecimal(decimalValueStr);
-
                     oneRow.put(follow, newValue);// 替换为新值
                 }
             }

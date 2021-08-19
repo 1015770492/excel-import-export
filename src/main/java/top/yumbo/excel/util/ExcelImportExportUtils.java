@@ -1178,9 +1178,15 @@ public class ExcelImportExportUtils {
                     }
                 } else {
                     final String[] split = resourcePath.split("://");
-                    // 是相对路径，springboot环境下，打成jar也有效
-                    ClassPathResource classPathResource = new ClassPathResource(split[1]);
-                    inputStream = classPathResource.getInputStream();
+                    if (split[1].startsWith("/")){
+                        // 绝对路径
+                        inputStream = new FileInputStream(split[1]);
+                    }else {
+                        // 是相对路径，springboot环境下，打成jar也有效
+                        ClassPathResource classPathResource = new ClassPathResource(split[1]);
+                        inputStream = classPathResource.getInputStream();
+                    }
+
                 }
                 return getWorkBookByInputStream(inputStream);
             }

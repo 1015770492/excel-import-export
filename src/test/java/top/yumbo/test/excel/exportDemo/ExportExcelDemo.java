@@ -1,7 +1,6 @@
 package top.yumbo.test.excel.exportDemo;
 
 import com.alibaba.fastjson.JSONObject;
-import org.apache.poi.ss.formula.functions.T;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.IndexedColors;
 import top.yumbo.excel.entity.CellStyleBuilder;
@@ -10,8 +9,10 @@ import top.yumbo.test.excel.importDemo.ImportForQuarter;
 
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.IntStream;
 
 /**
  * @author jinhua
@@ -27,44 +28,44 @@ public class ExportExcelDemo {
 //        /**
 //         * 得到List集合
 //         */
-//        System.out.println("=====导入季度数据======");
-//        String areaQuarter = "src/test/java/top/yumbo/test/excel/2.xlsx";
-////        String areaQuarter = "D:/季度数据-原样式导出6000.xlsx";
-//        final long start1 = System.currentTimeMillis();
-//        final List<ImportForQuarter> quarterList = ExcelImportExportUtils.importExcel(new FileInputStream(areaQuarter), ImportForQuarter.class, 30000);
-//        final long end1 = System.currentTimeMillis();
-//        System.out.println("数据量" + quarterList.size() + "条，导入耗时" + (end1 - start1) + "毫秒");
+        System.out.println("=====导入季度数据======");
+        String areaQuarter = "src/test/java/top/yumbo/test/excel/2.xlsx";
+//        String areaQuarter = "D:/季度数据-原样式导出6000.xlsx";
+        final long start1 = System.currentTimeMillis();
+        final List<ImportForQuarter> quarterList = ExcelImportExportUtils.importExcel(new FileInputStream(areaQuarter), ImportForQuarter.class, 30000);
+        final long end1 = System.currentTimeMillis();
+        System.out.println("数据量" + quarterList.size() + "条，导入耗时" + (end1 - start1) + "毫秒");
 //        quarterList.forEach(System.out::println);
-////        exportHighLight(quarterList, 3000);
-//        final List<ExportForQuarter> exportForQuarterList = JSONObject.parseArray(JSONObject.toJSONString(quarterList), ExportForQuarter.class);
-//        exportDefault(exportForQuarterList, 3000);
+//        exportHighLight(quarterList, 3000);
+        final List<ExportForQuarter> exportForQuarterList = JSONObject.parseArray(JSONObject.toJSONString(quarterList), ExportForQuarter.class);
+        exportDefault(exportForQuarterList, 3000);
 
         /**
          * 将其导出
          */
-//        if (quarterList != null) {
-//            // 将数据导出到本地文件, 如果要导出到web暴露出去只要传入输出流即可
-//            List<ExportForQuarter> list = new ArrayList<>();
-//            for (int i = 0; i < 5; i++) {
-//                list.addAll(exportForQuarterList);
-//            }
-//            for (int i = 0; i < 3; i++) {
-//                System.out.println("第" + (i + 1) + "次导出测试");
-//                System.out.println("总数据量：" + list.size() + "条记录");
-//                IntStream.of(10000).forEach(threshold -> {
-//                    System.out.println("threshold=" + threshold);
-//                    try {
-//                        exportDefault(list, threshold);
-//                        exportHighLight(list, threshold);
-//                        System.out.println(">>>>>>>>>>>>>>>>>");
-//
-//                    } catch (Exception e) {
-//                        e.printStackTrace();
-//                    }
-//                });
-//                break;
-//            }
-//        }
+        if (quarterList != null) {
+            // 将数据导出到本地文件, 如果要导出到web暴露出去只要传入输出流即可
+            List<ExportForQuarter> list = new ArrayList<>();
+            for (int i = 0; i < 1; i++) {
+                list.addAll(exportForQuarterList);
+            }
+            for (int i = 0; i < 3; i++) {
+                System.out.println("第" + (i + 1) + "次导出测试");
+                System.out.println("总数据量：" + list.size() + "条记录");
+                IntStream.of(10000).forEach(threshold -> {
+                    System.out.println("threshold=" + threshold);
+                    try {
+                        exportDefault(list, threshold);
+                        exportHighLight(list, threshold);
+                        System.out.println(">>>>>>>>>>>>>>>>>");
+
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                });
+                break;
+            }
+        }
 
     }
 
