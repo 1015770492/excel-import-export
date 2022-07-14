@@ -1,18 +1,21 @@
-package top.yumbo.excel.annotation;
+package top.yumbo.excel.annotation.core;
 
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import java.lang.annotation.*;
 
 /**
- * @author jinhua
- * @date 2021/5/21 15:53
+ * 绑定标题头注解
+ *
+ * @author 诗水人间
+ * @link 博客:{https://yumbo.blog.csdn.net/}
+ * @link github:{https://github.com/1015770492}
+ * @link 在线文档:{https://1015770492.github.io/excel-import-export/}
+ * @date 2021/9/1 22:04
  */
 @Target({ElementType.FIELD})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface ExcelCellBind {
+@Repeatable(TitleBinds.class)
+public @interface TitleBind {
     /**
      * 绑定的标题名称，
      * 通过扫描单元格表头可以确定表头所在的索引列，然后在根据width就能确定单元格
@@ -20,32 +23,28 @@ public @interface ExcelCellBind {
     String title() default "";
 
     /**
-     * 单元格宽度，对于合并单元格的处理
-     * 确定表格的位置采用： 下标（解析过程会得到下标） + 单元格的宽度
-     * 这样就可以确定单元格的位子和占据的宽度
+     * 合并连续的单元格，例如一个标题占据两列的情况
      */
     int width() default 1;
 
     /**
-     * 注入的异常消息，为了校验单元格内容
-     * 校验失败应该返回的消息提升
-     */
-    String exception() default "格式不正确";
-
-    /**
-     * 规模，对于BigDecimal类型的需要进行转换
+     * 单位基数，对于BigDecimal类型的需要进行转换
      */
     String size() default "1";
 
     /**
-     * 正则截取单元格部分内容，只需要部分其它内容丢掉
-     * 一个单元格中的部分内容，例如 2020年2季度，只想单独取出年、季度这两个数字
+     * 异常提醒
+     */
+    String exception() default "格式不正确";
+
+    /**
+     * 正则导入
+     * 一个单元格中的部分内容，例如 2020年2季度，只想单独取出年（2020）、季度（2）这两个数字
      */
     String importPattern() default "";
 
-
     /**
-     * 正则截取单元格内容，保留单元格内容，后面进行替换字典
+     * 自定义正则分隔符
      * 服务于replaceAllOrPart，如果使用了splitRegex，则会将内容切割进行replaceAllOrPart
      * 然后将将处理后的结果返回，然后再进行importPattern
      */

@@ -1,4 +1,4 @@
-package top.yumbo.excel.annotation;
+package top.yumbo.excel.annotation.business;
 
 import java.lang.annotation.*;
 
@@ -8,7 +8,7 @@ import java.lang.annotation.*;
  */
 @Target({ElementType.FIELD})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface AccountBigDecimalValue {
+public @interface ConvertBigDecimal {
     /**
      * 给哪一个字段进行计算
      */

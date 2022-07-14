@@ -1,10 +1,7 @@
-package top.yumbo.excel.annotation;
+package top.yumbo.excel.annotation.business;
 
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import java.lang.annotation.*;
 
 /**
  * @author jinhua
@@ -13,12 +10,27 @@ import java.lang.annotation.Target;
  */
 @Target({ElementType.FIELD})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface CheckValues {
+public @interface CheckNullLogic {
+
+    /**
+     * 字段名称
+     */
+    String follow() default "";
 
     /**
      * follow字段的值为value时必填
      */
     String[] values() default {};
+
+    /**
+     * 标题
+     */
+    String followTitle() default "";
+
+    /**
+     * 当前标题
+     */
+    String title() default "";
 
     /**
      * 消息

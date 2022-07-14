@@ -4,7 +4,11 @@ package top.yumbo.excel.util;
 import com.alibaba.fastjson.JSONObject;
 import org.apache.poi.ss.usermodel.*;
 import org.springframework.util.StringUtils;
-import top.yumbo.excel.annotation.*;
+import top.yumbo.excel.annotation.business.CheckNullLogic;
+import top.yumbo.excel.annotation.business.ConvertBigDecimal;
+import top.yumbo.excel.annotation.business.MapEntry;
+import top.yumbo.excel.annotation.core.TitleBind;
+import top.yumbo.excel.annotation.core.TableHeader;
 
 import javax.validation.ConstraintViolation;
 import javax.validation.Validation;
@@ -35,7 +39,7 @@ import java.util.regex.Pattern;
  * 转换中需要用到的信息通过注解实现，
  * 对于导入：通过注解-> 得到字段和表格关系
  */
-public class ExcelImportUtils2 {
+public class ExcelAnnotationImport {
 
     /**
      * 类型map，如果后续还添加了其他类型则继续往下面添加
@@ -271,7 +275,7 @@ public class ExcelImportUtils2 {
      */
     private static <T> void updateBigDecimalValue(JSONObject oneRow, Class<T> tClass) {
         for (Field field : tClass.getDeclaredFields()) {
-            AccountBigDecimalValue accountBigDecimalValue = field.getDeclaredAnnotation(AccountBigDecimalValue.class);
+            ConvertBigDecimal accountBigDecimalValue = field.getDeclaredAnnotation(ConvertBigDecimal.class);
             if (accountBigDecimalValue != null) {
                 String follow = accountBigDecimalValue.follow();
 
@@ -342,7 +346,7 @@ public class ExcelImportUtils2 {
                             if (fieldValue == null || !StringUtils.hasText(fieldValue.toString())) {
                                 // 值为null或者""情况下，需要跑异常
                                 // 得到follow字段上的标题，抛出提示信息。
-                                ExcelCellBind titleAnnotation = field.getDeclaredAnnotation(ExcelCellBind.class);
+                                TitleBind titleAnnotation = field.getDeclaredAnnotation(TitleBind.class);
                                 titleMap.getJSONObject(follow).forEach((title, reverseMap) -> {
                                     if (reverseMap != null) {
                                         throw new RuntimeException("第" + row + "行，\"" + title + "\" 的值为:\"" + ((JSONObject) reverseMap).getString(value) + "\" 时，\"" + titleAnnotation.title() + "\" 值不能为空");
@@ -453,13 +457,13 @@ public class ExcelImportUtils2 {
         // 收集字段-标题 的关系
         JSONObject titleMap = new JSONObject();
         // 1、先得到表头信息
-        final ExcelTableHeader tableHeaderAnnotation = clazz.getAnnotation(ExcelTableHeader.class);
+        final TableHeader tableHeaderAnnotation = clazz.getAnnotation(TableHeader.class);
         if (tableHeaderAnnotation != null) {
             tableHeader.put(TableEnum.TABLE_NAME.name(), tableHeaderAnnotation.tableName());// 表的名称
             tableHeader.put(TableEnum.TABLE_HEADER_HEIGHT.name(), tableHeaderAnnotation.height());// 表头的高度
             // 2、得到表的Body信息
             for (Field field : fields) {
-                final ExcelCellBind annotationTitle = field.getDeclaredAnnotation(ExcelCellBind.class);
+                final TitleBind annotationTitle = field.getDeclaredAnnotation(TitleBind.class);
 
                 if (annotationTitle != null) {// 找到自定义的注解
                     JSONObject cellDesc = new JSONObject();// 单元格描述信息

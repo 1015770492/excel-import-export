@@ -1,4 +1,4 @@
-package top.yumbo.excel.annotation;
+package top.yumbo.excel.annotation.core;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -8,13 +8,14 @@ import java.lang.annotation.Target;
 /**
  * 表头注解，表示excel的表头占据多少行（后面都是数据）
  *
- * @author jinhua
- * @date 2021/5/22 23:34
+ * @author 诗水人间
+ * @link 博客:{https://yumbo.blog.csdn.net/}
+ * @link github:{https://github.com/1015770492}
+ * @date 2021/9/1 22:04
  */
-
 @Target({ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface ExcelTableHeader {
+public @interface TableHeader {
     /**
      * 表头的高度，默认表头高1行
      */

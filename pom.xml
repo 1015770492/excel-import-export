@@ -59,7 +59,21 @@
             <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
         </repository>
     </distributionManagement>
+    <repositories>
+        <repository>
+            <id>alimaven</id>
+            <name>aliyun maven</name>
+            <!-- 新版本的aliyun镜像仓库地址建议mirrors中也修改，
+                 如果已经改好了，则可以去掉这个repositories -->
+            <url>https://maven.aliyun.com/repository/central</url>
+        </repository>
+    </repositories>
     <dependencies>
+        <dependency>
+            <groupId>top.yumbo.music</groupId>
+            <artifactId>yumbo-music-utils</artifactId>
+            <version>1.2.3</version>
+        </dependency>
         <!-- jsr303 校验 -->
         <dependency>
             <groupId>org.hibernate</groupId>

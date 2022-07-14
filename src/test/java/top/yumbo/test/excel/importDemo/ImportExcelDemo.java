@@ -24,15 +24,26 @@ public class ImportExcelDemo {
         System.out.println("总共耗时"+(end-start)+"毫秒");
         System.out.println("总共有"+yearList.size()+"条记录");
 //        yearList.forEach(System.out::println);
+//
+//        System.out.println("=====导入季度数据======");
+//        final long start2 = System.currentTimeMillis();
+////        String areaQuarter = "src/test/java/top/yumbo/test/excel/2.xlsx";
+//        String areaQuarter = "src/test/java/top/yumbo/test/excel/2_big.xlsx";
+//        final List<ImportForQuarter> quarterList = ExcelImportExportUtils.importExcel(new FileInputStream(areaQuarter), ImportForQuarter.class,2000);
+//        final long end2 = System.currentTimeMillis();
+//        System.out.println("总共耗时"+(end2-start2)+"毫秒");
+////        quarterList.forEach(System.out::println);
+//        System.out.println("总共有"+quarterList.size()+"条记录");
 
-        System.out.println("=====导入季度数据======");
-        final long start2 = System.currentTimeMillis();
-//        String areaQuarter = "src/test/java/top/yumbo/test/excel/2.xlsx";
-        String areaQuarter = "src/test/java/top/yumbo/test/excel/2_big.xlsx";
-        final List<ImportForQuarter> quarterList = ExcelImportExportUtils.importExcel(new FileInputStream(areaQuarter), ImportForQuarter.class,2000);
-        final long end2 = System.currentTimeMillis();
-        System.out.println("总共耗时"+(end-start)+"毫秒");
-//        quarterList.forEach(System.out::println);
-        System.out.println("总共有"+quarterList.size()+"条记录");
+//        System.out.println("=====导入数据 测试性能======");
+//        final long start2 = System.currentTimeMillis();
+////        String areaQuarter = "src/test/java/top/yumbo/test/excel/2.xlsx";
+//        String areaQuarter = "D:\\IdeaProjects\\easyexcel\\src\\test\\resources\\large\\large07.xlsx";
+//        final List<LargeData> quarterList = ExcelImportExportUtils.importExcel(new FileInputStream(areaQuarter), LargeData.class,3000);
+//        final long end2 = System.currentTimeMillis();
+//        System.out.println("总共耗时"+(end2-start2)+"毫秒");
+////        quarterList.forEach(System.out::println);
+//        System.out.println("总共有"+quarterList.size()+"条记录");
+
     }
 }

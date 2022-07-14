@@ -1,7 +1,7 @@
 package top.yumbo.test.excel.importDemo;
 
 import org.apache.poi.ss.usermodel.WorkbookFactory;
-import top.yumbo.excel.util.ExcelImportUtils2;
+import top.yumbo.excel.util.ExcelAnnotationImport;
 
 import java.io.FileInputStream;
 import java.util.List;
@@ -14,7 +14,7 @@ public class PIMImportDemo {
     public static void main(String[] args) throws Exception{
         String xlsx = "src/test/java/top/yumbo/test/excel/importDemo/PIM.xlsx";
 
-        final List<PIMExcel> pimExcels = ExcelImportUtils2.importExcel(WorkbookFactory.create(new FileInputStream(xlsx)).getSheetAt(0), PIMExcel.class);
+        final List<PIMExcel> pimExcels = ExcelAnnotationImport.importExcel(WorkbookFactory.create(new FileInputStream(xlsx)).getSheetAt(0), PIMExcel.class);
         pimExcels.forEach(System.out::println);
     }
 }

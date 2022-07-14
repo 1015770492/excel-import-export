@@ -4,8 +4,8 @@ package top.yumbo.test.excel.importDemo;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import top.yumbo.excel.annotation.CheckNullLogic;
-import top.yumbo.excel.annotation.MapEntry;
+import top.yumbo.excel.annotation.business.CheckNullLogic;
+import top.yumbo.excel.annotation.business.MapEntry;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
