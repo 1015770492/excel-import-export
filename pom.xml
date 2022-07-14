@@ -69,11 +69,6 @@
         </repository>
     </repositories>
     <dependencies>
-        <dependency>
-            <groupId>top.yumbo.music</groupId>
-            <artifactId>yumbo-music-utils</artifactId>
-            <version>1.2.3</version>
-        </dependency>
         <!-- jsr303 校验 -->
         <dependency>
             <groupId>org.hibernate</groupId>
