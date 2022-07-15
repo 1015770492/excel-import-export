@@ -519,7 +519,12 @@ public class ExcelImportExportUtils {
      * @param threshold   并发控制因子
      */
     public static <T> List<T> importExcel(InputStream inputStream, int sheetIdx, Class<T> tClass, int threshold) throws Exception {
-        return importExcel(getSheetByInputStream(inputStream, sheetIdx), tClass, threshold);
+        // 1、先得到表头信息
+        final ExcelTableHeader tableHeaderAnnotation = tClass.getDeclaredAnnotation(ExcelTableHeader.class);
+        if (tableHeaderAnnotation != null) {
+            return importExcel(getSheetByInputStream(inputStream, sheetIdx,tableHeaderAnnotation.tableName()), tClass, threshold);
+        }
+        return importExcel(getSheetByInputStream(inputStream, sheetIdx,null), tClass, threshold);
     }
 
     /**
@@ -860,10 +865,17 @@ public class ExcelImportExportUtils {
      *
      * @param inputStream 输入流
      * @param idx         第几个sheet
+     * @param sheetName  sheetName
      */
-    public static Sheet getSheetByInputStream(InputStream inputStream, int idx) throws Exception {
+    public static Sheet getSheetByInputStream(InputStream inputStream, int idx, String sheetName) throws Exception {
         final Workbook workbook = getWorkBookByInputStream(inputStream);
-        final Sheet sheet = workbook.getSheetAt(idx);
+        Sheet sheet =null;
+        if(sheetName!= null){
+            sheet = workbook.getSheet(sheetName);
+        }
+        if(sheet ==null){
+            sheet = workbook.getSheetAt(idx);
+        }
         if (sheet == null) {
             throw new NullPointerException("序号为" + idx + "的sheet不存在");
         }
