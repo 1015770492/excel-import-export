@@ -82,7 +82,17 @@ public class ExcelImportExportUtils {
         FORE_COLOR, ROTATION, FILL_PATTERN, AUTO_SHRINK, TOP, BOTTOM, LEFT, RIGHT
     }
 
-
+    /**
+     * 数字转字母
+     * @param index 从0开始（26进制A-Z）
+     */
+    public static String numToLetter(int index) {
+        final String[] str = {Integer.toString(index, 26)};
+        ExcelConstants.intMap.forEach((k,v)->{
+            str[0] = str[0].replaceAll(k, v);
+        });
+        return str[0];
+    }
     /**
      * 并发导入任务
      */
@@ -166,7 +176,7 @@ public class ExcelImportExportUtils {
                     String exception = fieldDesc.getString(CellEnum.EXCEPTION.name());// 转换异常返回的消息
                     String size = fieldDesc.getString(CellEnum.SIZE.name());// 得到规模
                     boolean nullable = fieldDesc.getBoolean(CellEnum.NULLABLE.name());
-                    String positionMessage = "异常：第" + (i + 1) + "行的,第" + (index + 1) + "列";
+                    String positionMessage = "异常：第" + (i + 1) + "行的, " + numToLetter(index) + " 列";
 
                     // 得到异常消息
                     message = positionMessage + exception;
