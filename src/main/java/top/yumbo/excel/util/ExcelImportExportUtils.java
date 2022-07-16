@@ -82,6 +82,15 @@ public class ExcelImportExportUtils {
         FORE_COLOR, ROTATION, FILL_PATTERN, AUTO_SHRINK, TOP, BOTTOM, LEFT, RIGHT
     }
 
+    public static String numToLetter(int index) {
+        final String[] str = {Integer.toString(index, 26)};
+        ExcelConstants.intMap.forEach((k,v)->{
+            str[0] = str[0].replaceAll(k, v);
+        });
+        return str[0];
+    }
+
+
     /**
      * 并发导入任务
      */
@@ -165,7 +174,7 @@ public class ExcelImportExportUtils {
                     String exception = fieldDesc.getString(CellEnum.EXCEPTION.name());// 转换异常返回的消息
                     String size = fieldDesc.getString(CellEnum.SIZE.name());// 得到规模
                     boolean nullable = fieldDesc.getBoolean(CellEnum.NULLABLE.name());
-                    String positionMessage = "异常：第" + (i + 1) + "行的,第" + (index + 1) + "列";
+                    String positionMessage = "异常：第" + (i + 1) + "行的, " + numToLetter(index) + " 列";
 
                     // 得到异常消息
                     message = positionMessage + exception;
@@ -183,7 +192,7 @@ public class ExcelImportExportUtils {
                         if (!hasText) {
                             // 字段不能为空结果为空，这个空字段异常计数+1。除非count==length，然后重新计数，否则就是一行异常数据
                             // 进来了，说明不为空字段在excel中为空，所以需要报异常
-                            errMessage.add(positionMessage+"---单元格不能为空---所在标题：" + title);
+                            errMessage.add(positionMessage + "---单元格不能为空---所在标题：" + title);
                             continue;
                         } else {
                             try {
@@ -236,7 +245,7 @@ public class ExcelImportExportUtils {
                 throw new RuntimeException("\n" + listToString(rowOfErrMessage.get(0)));
             } else if (rowOfErrMessage.size() >= 2) {
                 // 需要终止程序，出现了异常
-                throw new RuntimeException("\n\nExcel中有"+rowOfErrMessage.size()+"行数据有Error:\n\n" + rowOfErrMessage.stream().map(ExcelImportExportUtils::listToString).reduce((list1, list2) -> list1 + "\n" + list2).get());
+                throw new RuntimeException("\n\nExcel中有" + rowOfErrMessage.size() + "行数据有Error:\n\n" + rowOfErrMessage.stream().map(ExcelImportExportUtils::listToString).reduce((list1, list2) -> list1 + "\n" + list2).get());
             }
 
             return result;
@@ -538,7 +547,7 @@ public class ExcelImportExportUtils {
             if (!tableName.trim().equals(ExcelConstants.SHEET1)) {
                 //如果不是默认的，则根据名称找到sheet，进行操作
                 Sheet sheet = getSheetByInputStream(inputStream, tableName);
-                return importExcel(sheet,tClass,threshold);
+                return importExcel(sheet, tClass, threshold);
             }
         }
         return importExcel(inputStream, 0, tClass, threshold);
@@ -918,6 +927,7 @@ public class ExcelImportExportUtils {
         }
         return sheet;
     }
+
     /**
      * 获取表头的高度
      */
@@ -1244,10 +1254,10 @@ public class ExcelImportExportUtils {
                     }
                 } else {
                     final String[] split = resourcePath.split("://");
-                    if (split[1].startsWith("/")){
+                    if (split[1].startsWith("/")) {
                         // 绝对路径
                         inputStream = new FileInputStream(split[1]);
-                    }else {
+                    } else {
                         // 是相对路径，springboot环境下，打成jar也有效
                         ClassPathResource classPathResource = new ClassPathResource(split[1]);
                         inputStream = classPathResource.getInputStream();
