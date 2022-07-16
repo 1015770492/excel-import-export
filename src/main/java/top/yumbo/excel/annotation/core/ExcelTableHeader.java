@@ -1,5 +1,7 @@
 package top.yumbo.excel.annotation.core;
 
+import top.yumbo.excel.consts.ExcelConstants;
+
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -24,7 +26,7 @@ public @interface ExcelTableHeader {
     /**
      * 表名
      */
-    String tableName() default "Sheet1";
+    String sheetName() default ExcelConstants.SHEET1;
 
     /**
      * 模板Excel的在线访问路径，用于导出功能。
@@ -40,10 +42,10 @@ public @interface ExcelTableHeader {
     /**
      * excel的格式，xls于xlsx不兼容所致，默认xlsx
      */
-    String type() default "xlsx";
+    String type() default ExcelConstants.XLSX;
 
     /**
      * 默认密码，可编辑/不可编辑单元格需要用到
      */
-    String password() default "123456";
+    String password() default ExcelConstants.DEFAULT_PASSWORD;
 }

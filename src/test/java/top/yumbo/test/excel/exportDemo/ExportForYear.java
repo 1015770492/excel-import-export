@@ -12,7 +12,7 @@ import java.math.BigDecimal;
  * @date 2021/5/28 14:28
  */
 @Data
-@ExcelTableHeader(height = 4, tableName = "区域年度数据", resource = "path:///src/test/java/top/yumbo/test/excel/1.xlsx")
+@ExcelTableHeader(height = 4, sheetName = "区域年度数据", resource = "path:///src/test/java/top/yumbo/test/excel/1.xlsx")
 // 表头占4行
 public class ExportForYear {
 

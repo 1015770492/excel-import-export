@@ -16,6 +16,7 @@ import org.springframework.web.client.RestTemplate;
 import top.yumbo.excel.annotation.core.ExcelTitleBind;
 import top.yumbo.excel.annotation.business.ExcelCellStyle;
 import top.yumbo.excel.annotation.core.ExcelTableHeader;
+import top.yumbo.excel.consts.ExcelConstants;
 import top.yumbo.excel.entity.CellStyleBuilder;
 import top.yumbo.excel.entity.TitleBuilder;
 import top.yumbo.excel.entity.TitleBuilders;
@@ -531,6 +532,15 @@ public class ExcelImportExportUtils {
      * @param threshold   并发任务的颗粒度
      */
     public static <T> List<T> importExcel(InputStream inputStream, Class<T> tClass, int threshold) throws Exception {
+        ExcelTableHeader tableHeader = tClass.getAnnotation(ExcelTableHeader.class);
+        if (tableHeader != null) {
+            String tableName = tableHeader.sheetName();
+            if (!tableName.trim().equals(ExcelConstants.SHEET1)) {
+                //如果不是默认的，则根据名称找到sheet，进行操作
+                Sheet sheet = getSheetByInputStream(inputStream, tableName);
+                return importExcel(sheet,tClass,threshold);
+            }
+        }
         return importExcel(inputStream, 0, tClass, threshold);
     }
 
@@ -895,6 +905,20 @@ public class ExcelImportExportUtils {
     }
 
     /**
+     * 根据名称返回sheet
+     *
+     * @param inputStream 输入流
+     * @param sheetName   sheet的名称
+     */
+    public static Sheet getSheetByInputStream(InputStream inputStream, String sheetName) throws Exception {
+        final Workbook workbook = getWorkBookByInputStream(inputStream);
+        final Sheet sheet = workbook.getSheet(sheetName);
+        if (sheet == null) {
+            throw new NullPointerException("sheetName为" + sheetName + "的sheet不存在");
+        }
+        return sheet;
+    }
+    /**
      * 获取表头的高度
      */
     private static Integer getTableHeight(JSONObject tableHeaderDesc) {
@@ -1034,7 +1058,7 @@ public class ExcelImportExportUtils {
         // 1、先得到表头信息
         final ExcelTableHeader excelTableHeaderAnnotation = clazz.getAnnotation(ExcelTableHeader.class);
         if (excelTableHeaderAnnotation != null) {
-            tableHeader.put(TableEnum.TABLE_NAME.name(), excelTableHeaderAnnotation.tableName());// 表的名称
+            tableHeader.put(TableEnum.TABLE_NAME.name(), excelTableHeaderAnnotation.sheetName());// 表的名称
             tableHeader.put(TableEnum.TABLE_HEADER_HEIGHT.name(), excelTableHeaderAnnotation.height());// 表头的高度
 
             // 2、得到表的Body信息
@@ -1086,7 +1110,7 @@ public class ExcelImportExportUtils {
         // 1、先得到表头信息
         final ExcelTableHeader excelTableHeaderAnnotation = clazz.getDeclaredAnnotation(ExcelTableHeader.class);
         if (excelTableHeaderAnnotation != null) {
-            tableHeader.put(TableEnum.TABLE_NAME.name(), excelTableHeaderAnnotation.tableName());// 表的名称
+            tableHeader.put(TableEnum.TABLE_NAME.name(), excelTableHeaderAnnotation.sheetName());// 表的名称
             tableHeader.put(TableEnum.TABLE_HEADER_HEIGHT.name(), excelTableHeaderAnnotation.height());// 表头的高度
             tableHeader.put(TableEnum.RESOURCE.name(), excelTableHeaderAnnotation.resource());// 模板excel的访问路径
             tableHeader.put(TableEnum.TYPE.name(), excelTableHeaderAnnotation.type());// xlsx 或 xls 格式
