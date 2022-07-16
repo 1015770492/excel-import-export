@@ -695,7 +695,7 @@ public class ExcelExportUtils {
         // 1、先得到表头信息
         final ExcelTableHeader tableHeaderAnnotation = clazz.getDeclaredAnnotation(ExcelTableHeader.class);
         if (tableHeaderAnnotation != null) {
-            tableHeader.put(TableEnum.TABLE_NAME.name(), tableHeaderAnnotation.tableName());// 表的名称
+            tableHeader.put(TableEnum.TABLE_NAME.name(), tableHeaderAnnotation.sheetName());// 表的名称
             tableHeader.put(TableEnum.TABLE_HEADER_HEIGHT.name(), tableHeaderAnnotation.height());// 表头的高度
             tableHeader.put(TableEnum.RESOURCE.name(), tableHeaderAnnotation.resource());// 模板excel的访问路径
             tableHeader.put(TableEnum.TYPE.name(), tableHeaderAnnotation.type());// xlsx 或 xls 格式

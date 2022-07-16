@@ -25,7 +25,7 @@
 ```java
 @Data
 // 表头占4行，height，同时使用resource设置模板文件位置
-@ExcelTableHeader(height = 4, tableName = "区域季度数据", resource = "path://java/top/yumbo/test/excel/2_2.xlsx")
+@ExcelTableHeader(height = 4, sheetName = "区域季度数据", resource = "path://java/top/yumbo/test/excel/2_2.xlsx")
 public class ExportForQuarter {
 
     // 根据正则截取单元格内容关于年份的值。其中exportFormat是导出excel填充到单元格的内容

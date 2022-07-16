@@ -13,7 +13,7 @@ import java.math.BigDecimal;
  * @date 2021/5/19 16:39
  */
 @Data
-@ExcelTableHeader(height = 4, tableName = "区域年度数据")// 表头占4行
+@ExcelTableHeader(height = 4, sheetName = "区域年度数据")// 表头占4行
 public class ImportForYear {
 
 

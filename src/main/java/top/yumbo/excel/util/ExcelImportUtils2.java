@@ -455,7 +455,7 @@ public class ExcelImportUtils2 {
         // 1、先得到表头信息
         final ExcelTableHeader tableHeaderAnnotation = clazz.getAnnotation(ExcelTableHeader.class);
         if (tableHeaderAnnotation != null) {
-            tableHeader.put(TableEnum.TABLE_NAME.name(), tableHeaderAnnotation.tableName());// 表的名称
+            tableHeader.put(TableEnum.TABLE_NAME.name(), tableHeaderAnnotation.sheetName());// 表的名称
             tableHeader.put(TableEnum.TABLE_HEADER_HEIGHT.name(), tableHeaderAnnotation.height());// 表头的高度
             // 2、得到表的Body信息
             for (Field field : fields) {

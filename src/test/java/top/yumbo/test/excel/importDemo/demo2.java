@@ -13,7 +13,7 @@ public class demo2 {
         final long start = System.currentTimeMillis();
         List<ImportForInveProj> quarterList;
         try {
-            quarterList = ExcelImportExportUtils.importExcel(new FileInputStream(file), 1, ImportForInveProj.class, 2000);
+            quarterList = ExcelImportExportUtils.importExcel(new FileInputStream(file), ImportForInveProj.class, 2000);
             System.out.println(quarterList);
         } catch (Exception e) {
             e.printStackTrace();

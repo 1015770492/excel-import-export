@@ -15,7 +15,7 @@ import java.math.BigDecimal;
  */
 @Data
 // 表头占4行，height，同时使用resource设置模板文件位置
-@ExcelTableHeader(height = 4, tableName = "区域季度数据", resource = "path:///D:/IdeaProjects/excel-import-export/src/test/java/top/yumbo/test/excel/2.xlsx")
+@ExcelTableHeader(height = 4, sheetName = "区域季度数据", resource = "path:///D:/IdeaProjects/excel-import-export/src/test/java/top/yumbo/test/excel/2.xlsx")
 // 如果关于path的设置，建议使用绝对路径，例如：上面的案例 以/开头，如果要配置相对路径，需要确保模板excel文件与.class文件的路径关系
 // 本地项目中容易导致一个错误就算编译后的.class文件中会发现模板文件不在编译的路径，就会导致路径错误
 public class ExportForQuarter {
