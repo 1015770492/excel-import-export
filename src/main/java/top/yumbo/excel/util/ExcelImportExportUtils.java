@@ -82,6 +82,10 @@ public class ExcelImportExportUtils {
         FORE_COLOR, ROTATION, FILL_PATTERN, AUTO_SHRINK, TOP, BOTTOM, LEFT, RIGHT
     }
 
+    /**
+     * 数字转字母
+     * @param index 从0开始（26进制A-Z）
+     */
     public static String numToLetter(int index) {
         final String[] str = {Integer.toString(index, 26)};
         ExcelConstants.intMap.forEach((k,v)->{
