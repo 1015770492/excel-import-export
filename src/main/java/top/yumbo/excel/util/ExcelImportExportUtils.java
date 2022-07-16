@@ -13,9 +13,9 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
-import top.yumbo.excel.annotation.core.TitleBind;
+import top.yumbo.excel.annotation.core.ExcelTitleBind;
 import top.yumbo.excel.annotation.business.ExcelCellStyle;
-import top.yumbo.excel.annotation.core.TableHeader;
+import top.yumbo.excel.annotation.core.ExcelTableHeader;
 import top.yumbo.excel.entity.CellStyleBuilder;
 import top.yumbo.excel.entity.TitleBuilder;
 import top.yumbo.excel.entity.TitleBuilders;
@@ -136,18 +136,22 @@ public class ExcelImportExportUtils {
             String message = "";// 异常消息
             final ArrayList<T> result = new ArrayList<>();
 
+            ArrayList<List<String>> rowOfErrMessage = new ArrayList<>();
             // 按行扫描excel表
             for (int i = start; i <= end; i++) {
                 final Row row = sheet.getRow(i);
+                if (row == null) {
+                    continue;
+                }
                 JSONObject oneRow = new JSONObject();// 一行数据
-                oneRow.put(CellEnum.ROW.name(), i);// 记录行号
-                int length = fieldInfo.keySet().size();// 有多少个字段要进行处理
-                int count = 0;// 记录异常空字段次数，如果与size相等说明是空行
-                //将Row转换为JSONObject
+                oneRow.put(CellEnum.ROW.name(), i + 1);// 记录行号
+                // 错误消息列表
+                ArrayList<String> errMessage = new ArrayList<>();
+                // 将Row转换为JSONObject
                 for (Object entry : fieldInfo.values()) {
                     JSONObject fieldDesc = (JSONObject) entry;
 
-                    // 得到字段的索引位子
+                    // 得到字段的下标
                     Integer index = fieldDesc.getInteger(CellEnum.COL.name());
                     if (index < 0) {
                         continue;
@@ -160,7 +164,7 @@ public class ExcelImportExportUtils {
                     String exception = fieldDesc.getString(CellEnum.EXCEPTION.name());// 转换异常返回的消息
                     String size = fieldDesc.getString(CellEnum.SIZE.name());// 得到规模
                     boolean nullable = fieldDesc.getBoolean(CellEnum.NULLABLE.name());
-                    String positionMessage = "异常：第" + i + "行的,第" + (index + 1) + "列 ---标题：" + title + " -- ";
+                    String positionMessage = "异常：第" + (i + 1) + "行的,第" + (index + 1) + "列";
 
                     // 得到异常消息
                     message = positionMessage + exception;
@@ -177,7 +181,8 @@ public class ExcelImportExportUtils {
                         // 说明字段不可以为空
                         if (!hasText) {
                             // 字段不能为空结果为空，这个空字段异常计数+1。除非count==length，然后重新计数，否则就是一行异常数据
-                            count++;// 不为空字段异常计数+1
+                            // 进来了，说明不为空字段在excel中为空，所以需要报异常
+                            errMessage.add(positionMessage+"---单元格不能为空---所在标题：" + title);
                             continue;
                         } else {
                             try {
@@ -185,13 +190,13 @@ public class ExcelImportExportUtils {
                                 value = patternConvert(pattern, value);
                                 castValue = cast(value, fieldType, message, size);
                             } catch (ClassCastException e) {
-                                throw new RuntimeException(message + e.getMessage());
+                                errMessage.add(message + e.getMessage() + "\ttype:" + fieldType + "\tvalue:" + value);
+                                continue;
                             }
                         }
 
                     } else {
                         // 字段可以为空 （要么正常 要么返回null不会抛异常）
-                        length--;
                         try {
                             // 单元格内容无关紧要。要么正常转换，要么返回null
                             value = patternConvert(pattern, value);
@@ -203,9 +208,10 @@ public class ExcelImportExportUtils {
                     // 默认添加为null，只有正常才添加正常，否则中途抛异常直接中止
                     oneRow.put(fieldName, castValue);// 添加数据
                 }
+
                 // 判断这行数据是否正常
                 // 正常情况下count是等于length的，因为每个字段都需要处理
-                if (count == 0) {
+                if (errMessage.size() == 0) {
                     T t = JSONObject.parseObject(oneRow.toJSONString(), clazz);
                     // 进行jsr303校验
                     Set<ConstraintViolation<T>> set = validator.validate(t);
@@ -214,20 +220,38 @@ public class ExcelImportExportUtils {
                     }
                     result.add(t);// 正常情况下添加一条数据
 
-                } else if (count < length) {
-                    flag = true;// 需要抛异常，因为存在不合法数据
-                    break;// 非空行，并且遇到一行关键字段为null需要终止
+                } else {
+                    // 该行存在error
+                    rowOfErrMessage.add(errMessage);
+                }
+                //
+                if (rowOfErrMessage.size() > 10) {
+                    break;
                 }
                 // 空行继续扫描,或者正常
             }
-            // 如果存在不合法数据抛异常
-            if (flag) {
-                throw new RuntimeException(message);
+            if (rowOfErrMessage.size() == 1) {
+                // 需要终止程序，出现了异常
+                throw new RuntimeException("\n" + listToString(rowOfErrMessage.get(0)));
+            } else if (rowOfErrMessage.size() >= 2) {
+                // 需要终止程序，出现了异常
+                throw new RuntimeException("\n\nExcel中有"+rowOfErrMessage.size()+"行数据有Error:\n\n" + rowOfErrMessage.stream().map(ExcelImportExportUtils::listToString).reduce((list1, list2) -> list1 + "\n" + list2).get());
             }
+
             return result;
         }
 
 
+    }
+
+    private static String listToString(List<String> list) {
+        if (list == null || list.size() == 0) {
+            return "[]";
+        } else if (list.size() == 1) {
+            return list.toString();
+        } else {
+            return "[" + list.stream().reduce((str1, str2) -> str1 + "\n" + str2).get() + "]";
+        }
     }
 
     /**
@@ -972,7 +996,25 @@ public class ExcelImportExportUtils {
         // 获取表格部分描述信息（根据泛型得到的）
         JSONObject partDescData = getImportDescriptionByClazz(tClass);
         // 根据相同标题填充index
-        return filledTitleIndexBySheet(partDescData, sheet);
+        JSONObject allDescData = filledTitleIndexBySheet(partDescData, sheet);
+        // 填充完成后移除 col 为-1的字段，去除多余的判断，提高效率（因为这些字段是不做处理的，没必要循环判断）
+        return removeColLessZero(allDescData);
+    }
+
+    /**
+     * 移除Col下标为-1的字段描述信息。这样可以少一些循环的判断。
+     */
+    private static JSONObject removeColLessZero(JSONObject allDescData) {
+        JSONObject tableBodyDesc = getExcelBodyDescInfo(allDescData);
+        JSONObject newBodyDesc = new JSONObject();
+        // 补充table每一项的index信息
+        tableBodyDesc.forEach((fieldName, cellDesc) -> {
+            if (((JSONObject) cellDesc).getInteger(CellEnum.COL.name()) >= 0) {
+                newBodyDesc.put(fieldName, cellDesc);
+            }
+        });
+        allDescData.put(TableEnum.TABLE_BODY.name(), newBodyDesc);
+        return allDescData;
     }
 
     /**
@@ -990,14 +1032,14 @@ public class ExcelImportExportUtils {
         JSONObject tableHeader = new JSONObject();// 表中主体数据信息
 
         // 1、先得到表头信息
-        final TableHeader tableHeaderAnnotation = clazz.getAnnotation(TableHeader.class);
-        if (tableHeaderAnnotation != null) {
-            tableHeader.put(TableEnum.TABLE_NAME.name(), tableHeaderAnnotation.tableName());// 表的名称
-            tableHeader.put(TableEnum.TABLE_HEADER_HEIGHT.name(), tableHeaderAnnotation.height());// 表头的高度
+        final ExcelTableHeader excelTableHeaderAnnotation = clazz.getAnnotation(ExcelTableHeader.class);
+        if (excelTableHeaderAnnotation != null) {
+            tableHeader.put(TableEnum.TABLE_NAME.name(), excelTableHeaderAnnotation.tableName());// 表的名称
+            tableHeader.put(TableEnum.TABLE_HEADER_HEIGHT.name(), excelTableHeaderAnnotation.height());// 表头的高度
 
             // 2、得到表的Body信息
             for (Field field : fields) {
-                final TitleBind annotationTitle = field.getDeclaredAnnotation(TitleBind.class);
+                final ExcelTitleBind annotationTitle = field.getDeclaredAnnotation(ExcelTitleBind.class);
                 if (annotationTitle != null) {// 找到自定义的注解
                     JSONObject cellDesc = new JSONObject();// 单元格描述信息
                     String title = annotationTitle.title();         // 获取标题，如果标题不存在则不进行处理
@@ -1042,16 +1084,16 @@ public class ExcelImportExportUtils {
         JSONObject exportInfo = new JSONObject();// excel的描述数据
 
         // 1、先得到表头信息
-        final TableHeader tableHeaderAnnotation = clazz.getDeclaredAnnotation(TableHeader.class);
-        if (tableHeaderAnnotation != null) {
-            tableHeader.put(TableEnum.TABLE_NAME.name(), tableHeaderAnnotation.tableName());// 表的名称
-            tableHeader.put(TableEnum.TABLE_HEADER_HEIGHT.name(), tableHeaderAnnotation.height());// 表头的高度
-            tableHeader.put(TableEnum.RESOURCE.name(), tableHeaderAnnotation.resource());// 模板excel的访问路径
-            tableHeader.put(TableEnum.TYPE.name(), tableHeaderAnnotation.type());// xlsx 或 xls 格式
-            tableHeader.put(TableEnum.PASSWORD.name(), tableHeaderAnnotation.password());// 模板excel的访问路径
+        final ExcelTableHeader excelTableHeaderAnnotation = clazz.getDeclaredAnnotation(ExcelTableHeader.class);
+        if (excelTableHeaderAnnotation != null) {
+            tableHeader.put(TableEnum.TABLE_NAME.name(), excelTableHeaderAnnotation.tableName());// 表的名称
+            tableHeader.put(TableEnum.TABLE_HEADER_HEIGHT.name(), excelTableHeaderAnnotation.height());// 表头的高度
+            tableHeader.put(TableEnum.RESOURCE.name(), excelTableHeaderAnnotation.resource());// 模板excel的访问路径
+            tableHeader.put(TableEnum.TYPE.name(), excelTableHeaderAnnotation.type());// xlsx 或 xls 格式
+            tableHeader.put(TableEnum.PASSWORD.name(), excelTableHeaderAnnotation.password());// 模板excel的访问路径
             if (sheet == null) {
                 // sheet不存在则从注解信息中获取
-                final Workbook workBook = getWorkBookByResource(tableHeaderAnnotation.resource(), tableHeaderAnnotation.type());
+                final Workbook workBook = getWorkBookByResource(excelTableHeaderAnnotation.resource(), excelTableHeaderAnnotation.type());
                 sheet = workBook.getSheetAt(0);
                 if (sheet == null) {
                     sheet = workBook.createSheet();
@@ -1062,14 +1104,14 @@ public class ExcelImportExportUtils {
 
             // 2、得到表的Body信息
             for (Field field : fields) {
-                final TitleBind annotationTitle = field.getDeclaredAnnotation(TitleBind.class);// 获取ExcelCellEnumBindAnnotation注解
+                final ExcelTitleBind annotationTitle = field.getDeclaredAnnotation(ExcelTitleBind.class);// 获取ExcelCellEnumBindAnnotation注解
                 ExcelCellStyle[] annotationStyles = field.getDeclaredAnnotationsByType(ExcelCellStyle.class);// 获取单元格样式注解
                 if (annotationTitle != null) {// 找到自定义的注解
                     JSONObject titleDesc = new JSONObject();// 单元格描述信息
                     String title = annotationTitle.title();         // 获取标题，如果标题不存在则不进行处理
                     if (StringUtils.hasText(title)) {
                         // 根据标题找到索引
-                        int titleIndexFromSheet = getTitleIndexFromSheet(title, sheet, tableHeaderAnnotation.height());
+                        int titleIndexFromSheet = getTitleIndexFromSheet(title, sheet, excelTableHeaderAnnotation.height());
                         String titleIndexString = String.valueOf(titleIndexFromSheet);// 字符串类型 标题的下标
 
                         titleDesc.put(CellEnum.TITLE_NAME.name(), annotationTitle.title());// 单元格的宽度（宽度为2代表合并了2格单元格）

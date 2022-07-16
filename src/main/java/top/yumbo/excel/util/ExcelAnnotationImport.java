@@ -7,8 +7,8 @@ import org.springframework.util.StringUtils;
 import top.yumbo.excel.annotation.business.CheckNullLogic;
 import top.yumbo.excel.annotation.business.ConvertBigDecimal;
 import top.yumbo.excel.annotation.business.MapEntry;
-import top.yumbo.excel.annotation.core.TitleBind;
-import top.yumbo.excel.annotation.core.TableHeader;
+import top.yumbo.excel.annotation.core.ExcelTableHeader;
+import top.yumbo.excel.annotation.core.ExcelTitleBind;
 
 import javax.validation.ConstraintViolation;
 import javax.validation.Validation;
@@ -346,7 +346,7 @@ public class ExcelAnnotationImport {
                             if (fieldValue == null || !StringUtils.hasText(fieldValue.toString())) {
                                 // 值为null或者""情况下，需要跑异常
                                 // 得到follow字段上的标题，抛出提示信息。
-                                TitleBind titleAnnotation = field.getDeclaredAnnotation(TitleBind.class);
+                                ExcelTitleBind titleAnnotation = field.getDeclaredAnnotation(ExcelTitleBind.class);
                                 titleMap.getJSONObject(follow).forEach((title, reverseMap) -> {
                                     if (reverseMap != null) {
                                         throw new RuntimeException("第" + row + "行，\"" + title + "\" 的值为:\"" + ((JSONObject) reverseMap).getString(value) + "\" 时，\"" + titleAnnotation.title() + "\" 值不能为空");
@@ -457,13 +457,13 @@ public class ExcelAnnotationImport {
         // 收集字段-标题 的关系
         JSONObject titleMap = new JSONObject();
         // 1、先得到表头信息
-        final TableHeader tableHeaderAnnotation = clazz.getAnnotation(TableHeader.class);
-        if (tableHeaderAnnotation != null) {
-            tableHeader.put(TableEnum.TABLE_NAME.name(), tableHeaderAnnotation.tableName());// 表的名称
-            tableHeader.put(TableEnum.TABLE_HEADER_HEIGHT.name(), tableHeaderAnnotation.height());// 表头的高度
+        final ExcelTableHeader excelTableHeaderAnnotation = clazz.getAnnotation(ExcelTableHeader.class);
+        if (excelTableHeaderAnnotation != null) {
+            tableHeader.put(TableEnum.TABLE_NAME.name(), excelTableHeaderAnnotation.tableName());// 表的名称
+            tableHeader.put(TableEnum.TABLE_HEADER_HEIGHT.name(), excelTableHeaderAnnotation.height());// 表头的高度
             // 2、得到表的Body信息
             for (Field field : fields) {
-                final TitleBind annotationTitle = field.getDeclaredAnnotation(TitleBind.class);
+                final ExcelTitleBind annotationTitle = field.getDeclaredAnnotation(ExcelTitleBind.class);
 
                 if (annotationTitle != null) {// 找到自定义的注解
                     JSONObject cellDesc = new JSONObject();// 单元格描述信息

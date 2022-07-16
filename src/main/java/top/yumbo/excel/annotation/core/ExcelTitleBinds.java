@@ -16,6 +16,6 @@ import java.lang.annotation.Target;
  */
 @Target({ElementType.FIELD})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface TitleBinds {
-    TitleBind[] value();
+public @interface ExcelTitleBinds {
+    ExcelTitleBind[] value();
 }

@@ -15,7 +15,7 @@ import java.lang.annotation.Target;
  */
 @Target({ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface TableHeader {
+public @interface ExcelTableHeader {
     /**
      * 表头的高度，默认表头高1行
      */

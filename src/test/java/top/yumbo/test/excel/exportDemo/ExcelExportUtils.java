@@ -15,9 +15,9 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
-import top.yumbo.excel.annotation.core.TitleBind;
+import top.yumbo.excel.annotation.core.ExcelTitleBind;
 import top.yumbo.excel.annotation.business.ExcelCellStyle;
-import top.yumbo.excel.annotation.core.TableHeader;
+import top.yumbo.excel.annotation.core.ExcelTableHeader;
 import top.yumbo.excel.entity.TitleBuilder;
 import top.yumbo.excel.entity.TitleBuilders;
 import top.yumbo.excel.util.BigDecimalUtils;
@@ -693,16 +693,16 @@ public class ExcelExportUtils {
         JSONObject exportInfo = new JSONObject();// excel的描述数据
 
         // 1、先得到表头信息
-        final TableHeader tableHeaderAnnotation = clazz.getDeclaredAnnotation(TableHeader.class);
-        if (tableHeaderAnnotation != null) {
-            tableHeader.put(TableEnum.TABLE_NAME.name(), tableHeaderAnnotation.tableName());// 表的名称
-            tableHeader.put(TableEnum.TABLE_HEADER_HEIGHT.name(), tableHeaderAnnotation.height());// 表头的高度
-            tableHeader.put(TableEnum.RESOURCE.name(), tableHeaderAnnotation.resource());// 模板excel的访问路径
-            tableHeader.put(TableEnum.TYPE.name(), tableHeaderAnnotation.type());// xlsx 或 xls 格式
-            tableHeader.put(TableEnum.PASSWORD.name(), tableHeaderAnnotation.password());// 模板excel的访问路径
+        final ExcelTableHeader excelTableHeaderAnnotation = clazz.getDeclaredAnnotation(ExcelTableHeader.class);
+        if (excelTableHeaderAnnotation != null) {
+            tableHeader.put(TableEnum.TABLE_NAME.name(), excelTableHeaderAnnotation.tableName());// 表的名称
+            tableHeader.put(TableEnum.TABLE_HEADER_HEIGHT.name(), excelTableHeaderAnnotation.height());// 表头的高度
+            tableHeader.put(TableEnum.RESOURCE.name(), excelTableHeaderAnnotation.resource());// 模板excel的访问路径
+            tableHeader.put(TableEnum.TYPE.name(), excelTableHeaderAnnotation.type());// xlsx 或 xls 格式
+            tableHeader.put(TableEnum.PASSWORD.name(), excelTableHeaderAnnotation.password());// 模板excel的访问路径
             if (sheet == null) {
                 // sheet不存在则从注解信息中获取
-                final Workbook workBook = getWorkBookByResource(tableHeaderAnnotation.resource(), tableHeaderAnnotation.type());
+                final Workbook workBook = getWorkBookByResource(excelTableHeaderAnnotation.resource(), excelTableHeaderAnnotation.type());
                 sheet = workBook.getSheetAt(0);
                 if (sheet == null) {
                     sheet = workBook.createSheet();
@@ -713,14 +713,14 @@ public class ExcelExportUtils {
 
             // 2、得到表的Body信息
             for (Field field : fields) {
-                final TitleBind annotationTitle = field.getDeclaredAnnotation(TitleBind.class);// 获取ExcelCellEnumBindAnnotation注解
+                final ExcelTitleBind annotationTitle = field.getDeclaredAnnotation(ExcelTitleBind.class);// 获取ExcelCellEnumBindAnnotation注解
                 ExcelCellStyle[] annotationStyles = field.getDeclaredAnnotationsByType(ExcelCellStyle.class);// 获取单元格样式注解
                 if (annotationTitle != null) {// 找到自定义的注解
                     JSONObject titleDesc = new JSONObject();// 单元格描述信息
                     String title = annotationTitle.title();         // 获取标题，如果标题不存在则不进行处理
                     if (StringUtils.hasText(title)) {
                         // 根据标题找到索引
-                        int titleIndexFromSheet = getTitleIndexFromSheet(title, sheet, tableHeaderAnnotation.height());
+                        int titleIndexFromSheet = getTitleIndexFromSheet(title, sheet, excelTableHeaderAnnotation.height());
                         String titleIndexString = String.valueOf(titleIndexFromSheet);// 字符串类型 标题的下标
 
                         titleDesc.put(CellEnum.TITLE_NAME.name(), annotationTitle.title());// 单元格的宽度（宽度为2代表合并了2格单元格）

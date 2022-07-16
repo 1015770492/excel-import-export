@@ -2,3 +2,9 @@
 *.iml
 /.idea/
 /temp.xlsx
+
+!src
+!docs
+!pom.xml
+!README.md
+!.gitignore
