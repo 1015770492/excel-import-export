@@ -3,6 +3,7 @@ package top.yumbo.excel.util;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import org.apache.commons.math3.exception.OutOfRangeException;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -43,6 +44,8 @@ import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static top.yumbo.excel.consts.ExcelConstants.intMap;
+
 /**
  * @author jinhua
  * @date 2021/5/21 21:51
@@ -67,7 +70,7 @@ public class ExcelImportExportUtils {
 
     //表头信息
     private enum TableEnum {
-        WORK_BOOK, SHEET, TABLE_NAME, TABLE_HEADER, TABLE_HEADER_HEIGHT, RESOURCE, TYPE, TABLE_BODY, PASSWORD
+        WORK_BOOK, SHEET, TABLE_NAME, TABLE_HEADER, TABLE_HEADER_HEIGHT, RESOURCE, TYPE, TABLE_BODY, PASSWORD, RECORD_ALL_EXCEPTIONS
     }
 
     // 单元格信息
@@ -83,22 +86,62 @@ public class ExcelImportExportUtils {
     }
 
     /**
-     * 数字转字母
-     * @param index 从0开始（26进制A-Z）
+     * excel col最多到IV
+     * 该算法可以支持到ZY 完全够用
      */
     public static String numToLetter(int index) {
-        final String[] str = {Integer.toString(index, 26)};
-        ExcelConstants.intMap.forEach((k,v)->{
-            str[0] = str[0].replaceAll(k, v);
-        });
-        return str[0];
+        if (index < Integer.MAX_VALUE) {
+            if (index >= 1 && index <= 26) {
+                return intMap.get(index);
+            } else {
+                int temp = index % 26;
+                index -= temp;
+                int t = index / 26;
+                String s = numToLetter(temp);
+                if (t < 26) {
+                    return intMap.get(t) + s;
+                } else {
+                    return numToLetter(t) + s;
+                }
+            }
+        } else {
+            throw new OutOfRangeException(index, Integer.highestOneBit(index), Integer.lowestOneBit(index));
+        }
+
     }
+
+    /**
+     * excel 字母表示转数字（26进制）
+     */
+    public static int letterToNum(String index) {
+        double num = 0.0;
+        index = index.trim();
+        try {
+            // 如果是数字直接解析返回，如果不是则经过下面转换
+            return Integer.parseInt(index);
+        } catch (Exception ignored) {
+        }
+
+        index = index.toUpperCase();
+        for (int i = 0; i < index.length(); i++) {
+            int idx = index.length() - i - 1;
+            String ch = index.substring(idx, idx + 1);
+            if (intMap.containsValue(ch)) {
+                num = num + (ch.charAt(0) - 'A' + 1) * Math.pow(26, i);
+            } else {
+                throw new RuntimeException(index);
+            }
+        }
+        return (int) num - 1;
+    }
+
     /**
      * 并发导入任务
      */
     private static class ForkJoinImportTask<T> extends RecursiveTask<List<T>> {
         private final int start;
         private final int end;
+        private final boolean recordAllException;
         private final Sheet sheet;
         private final int threshold;// 默认1万以后需要拆分
         private final JSONObject fieldInfo;// tableBody
@@ -107,13 +150,14 @@ public class ExcelImportExportUtils {
         private static Validator validator = vf.getValidator();
 
 
-        ForkJoinImportTask(JSONObject fieldInfo, Class<T> clazz, Sheet sheet, int start, int end, int threshold) {
+        ForkJoinImportTask(JSONObject fieldInfo, Class<T> clazz, Sheet sheet, int start, int end, boolean recordAllException, int threshold) {
             this.fieldInfo = fieldInfo;
             this.clazz = clazz;
             this.sheet = sheet;
             this.start = start;
             this.end = end;
             this.threshold = threshold;
+            this.recordAllException = recordAllException;
         }
 
         @Override
@@ -127,10 +171,10 @@ public class ExcelImportExportUtils {
                 int middle = (start + end) / 2;
 
                 // 处理start到middle行号内的数据
-                ForkJoinImportTask<T> left = new ForkJoinImportTask<>(fieldInfo, clazz, sheet, start, middle, threshold);
+                ForkJoinImportTask<T> left = new ForkJoinImportTask<>(fieldInfo, clazz, sheet, start, middle, recordAllException, threshold);
                 left.fork();
                 // 处理middle+1到end行号内的数据
-                ForkJoinImportTask<T> right = new ForkJoinImportTask<>(fieldInfo, clazz, sheet, middle + 1, end, threshold);
+                ForkJoinImportTask<T> right = new ForkJoinImportTask<>(fieldInfo, clazz, sheet, middle + 1, end, recordAllException, threshold);
                 right.fork();
                 final List<T> leftList = left.join();
                 final List<T> rightList = right.join();
@@ -144,7 +188,6 @@ public class ExcelImportExportUtils {
          */
         private List<T> praseRowsToList() throws RuntimeException {
             // 从表头描述信息得到表头的高
-            boolean flag = false;// 是否是异常行
             String message = "";// 异常消息
             final ArrayList<T> result = new ArrayList<>();
 
@@ -236,21 +279,34 @@ public class ExcelImportExportUtils {
                     // 该行存在error
                     rowOfErrMessage.add(errMessage);
                 }
-                //
-                if (rowOfErrMessage.size() > 10) {
-                    break;
+                // 如果没有开启记录所有日志，则该task不会跑完，当达到了100条日志的时候就会抛异常
+                if (!recordAllException) {
+                    if (rowOfErrMessage.size() > 100) {
+                        // 每个线程默认达到100Exception时就结束
+                        throw new RuntimeException(Thread.currentThread().getName()+"-->超过100条异常记录\n"+ printRowOfException(rowOfErrMessage));
+                    }
                 }
                 // 空行继续扫描,或者正常
             }
-            if (rowOfErrMessage.size() == 1) {
-                // 需要终止程序，出现了异常
-                throw new RuntimeException("\n" + listToString(rowOfErrMessage.get(0)));
-            } else if (rowOfErrMessage.size() >= 2) {
-                // 需要终止程序，出现了异常
-                throw new RuntimeException("\n\nExcel中有" + rowOfErrMessage.size() + "行数据有Error:\n\n" + rowOfErrMessage.stream().map(ExcelImportExportUtils::listToString).reduce((list1, list2) -> list1 + "\n" + list2).get());
+            if (!recordAllException) {
+                if (rowOfErrMessage.size() == 1) {
+                    // 需要终止程序，出现了异常
+                    throw new RuntimeException("\n" + listToString(rowOfErrMessage.get(0)));
+                } else if (rowOfErrMessage.size() >= 2) {
+                    // 需要终止程序，出现了异常
+                    throw new RuntimeException("\n\nExcel中有" + rowOfErrMessage.size() + "行数据有Error:\n\n" + printRowOfException(rowOfErrMessage));
+                }
             }
 
+
             return result;
+        }
+
+        /**
+         * 拼接异常日志
+         */
+        private String printRowOfException(ArrayList<List<String>> rowOfErrMessage) {
+            return rowOfErrMessage.stream().map(ExcelImportExportUtils::listToString).reduce((list1, list2) -> list1 + "\n" + list2).get();
         }
 
 
@@ -549,7 +605,7 @@ public class ExcelImportExportUtils {
             if (!tableName.trim().equals(ExcelConstants.SHEET1)) {
                 //如果不是默认的，则根据名称找到sheet，进行操作
                 Sheet sheet = getSheetByInputStream(inputStream, tableName);
-                return importExcel(sheet,tClass,threshold);
+                return importExcel(sheet, tClass, threshold);
             }
         }
         // 如果注解中没有信息，默认从第一个sheet读取
@@ -581,10 +637,10 @@ public class ExcelImportExportUtils {
     }
 
     /**
-     * @param list
-     * @param titleBuilders
-     * @param outputStream
-     * @param <T>
+     * @param list          listBean
+     * @param titleBuilders 标题信息
+     * @param outputStream  导出的文件
+     * @param <T>           泛型
      */
     public static <T> void exportSimpleExcelHighLight(List<T> list, TitleBuilders titleBuilders, OutputStream outputStream, Function<T, IndexedColors> function) throws Exception {
         final Workbook workbook = new XSSFWorkbook();
@@ -769,12 +825,11 @@ public class ExcelImportExportUtils {
      * @return 只是将单元格内容转化为List
      */
     private static <T> List<T> sheetToList(Sheet sheet, Class<T> tClass, int threshold) throws RuntimeException {
-        if (sheet == null) {
-            throw new NullPointerException("sheet不能为Null");
-        }
+        sheetNullCheck(sheet);
         sheet.getWorkbook().setActiveSheet(0);
         final JSONObject importInfoByClazz = getImportInfoByClazz(sheet, tClass);
-        final Integer tableHeight = getTableHeight(getTableHeaderDescInfo(importInfoByClazz));
+        JSONObject tableHeaderDescInfo = getTableHeaderDescInfo(importInfoByClazz);
+        final Integer tableHeight = getTableHeight(tableHeaderDescInfo);
         final JSONObject titleInfo = getExcelBodyDescInfo(importInfoByClazz);
 
         final int lastRowNum = sheet.getLastRowNum();
@@ -784,13 +839,23 @@ public class ExcelImportExportUtils {
         if (threshold <= 0) {
             threshold = 10000;
         }
-        final ForkJoinImportTask<T> forkJoinAction = new ForkJoinImportTask<>(titleInfo, tClass, sheet, tableHeight, lastRowNum, threshold);
+        Boolean recordAllException = tableHeaderDescInfo.getBoolean(TableEnum.RECORD_ALL_EXCEPTIONS.name());
+        final ForkJoinImportTask<T> forkJoinAction = new ForkJoinImportTask<>(titleInfo, tClass, sheet, tableHeight, lastRowNum, recordAllException, threshold);
         // 执行任务
         final List<T> result = pool.invoke(forkJoinAction);
         final long end = System.currentTimeMillis();
 
         System.out.println("forkJoin读转换耗时" + (end - start) + "毫秒");
         return result;
+    }
+
+    /**
+     * 空校验
+     */
+    private static void sheetNullCheck(Sheet sheet) {
+        if (sheet == null) {
+            throw new NullPointerException("sheet不能为Null");
+        }
     }
 
     /**
@@ -1073,6 +1138,7 @@ public class ExcelImportExportUtils {
         if (tableHeaderAnnotation != null) {
             tableHeader.put(TableEnum.TABLE_NAME.name(), tableHeaderAnnotation.sheetName());// 表的名称
             tableHeader.put(TableEnum.TABLE_HEADER_HEIGHT.name(), tableHeaderAnnotation.height());// 表头的高度
+            tableHeader.put(TableEnum.RECORD_ALL_EXCEPTIONS.name(), tableHeaderAnnotation.recordAllExceptions());// 是否开启记录所有异常
 
             // 2、得到表的Body信息
             for (Field field : fields) {
@@ -1087,7 +1153,7 @@ public class ExcelImportExportUtils {
                         cellDesc.put(CellEnum.FIELD_TYPE.name(), field.getType().getTypeName());// 字段的类型
                         cellDesc.put(CellEnum.WIDTH.name(), annotationTitle.width());// 单元格的宽度（宽度为2代表合并了2格单元格）
                         cellDesc.put(CellEnum.EXCEPTION.name(), annotationTitle.exception());// 校验如果失败返回的异常消息
-                        cellDesc.put(CellEnum.COL.name(), annotationTitle.index());// 默认的索引位置
+                        cellDesc.put(CellEnum.COL.name(), letterToNum(annotationTitle.index()));// 默认的索引位置
                         cellDesc.put(CellEnum.SIZE.name(), annotationTitle.size());// 规模,记录规模(亿元/万元)
                         cellDesc.put(CellEnum.PATTERN.name(), annotationTitle.importPattern());// 正则表达式
                         cellDesc.put(CellEnum.NULLABLE.name(), annotationTitle.nullable());// 是否可空
@@ -1130,12 +1196,20 @@ public class ExcelImportExportUtils {
             tableHeader.put(TableEnum.PASSWORD.name(), tableHeaderAnnotation.password());// 模板excel的访问路径
             if (sheet == null) {
                 // sheet不存在则从注解信息中获取
-                final Workbook workBook = getWorkBookByResource(tableHeaderAnnotation.resource(), tableHeaderAnnotation.type());
-                sheet = workBook.getSheetAt(0);
-                if (sheet == null) {
-                    sheet = workBook.createSheet();
+                final Workbook workBook = getWorkBookByResource(tableHeaderAnnotation.resource());
+                if (workBook != null) {
+                    // 根据名称获取sheet，如果名称也没有才获取第一个sheet
+                    sheet = workBook.getSheet(tableHeaderAnnotation.sheetName());
+                    if (sheet == null) {
+                        sheet = workBook.getSheetAt(0);
+                        if (sheet == null) {
+                            sheet = workBook.createSheet();
+                        }
+                    }
+
                 }
             }
+            sheetNullCheck(sheet);
             exportInfo.put(TableEnum.SHEET.name(), sheet);
             exportInfo.put(TableEnum.WORK_BOOK.name(), sheet.getWorkbook());
 
@@ -1233,7 +1307,7 @@ public class ExcelImportExportUtils {
      *
      * @param resourcePath 资源路径
      */
-    private static Workbook getWorkBookByResource(String resourcePath, String type) throws Exception {
+    private static Workbook getWorkBookByResource(String resourcePath) throws Exception {
         String protoPattern = "(.*)://.*";// 得到协议名称
         final Pattern httpPattern = Pattern.compile(protoPattern);
         final Matcher matcher = httpPattern.matcher(resourcePath);
