@@ -48,4 +48,9 @@ public @interface ExcelTableHeader {
      * 默认密码，可编辑/不可编辑单元格需要用到
      */
     String password() default ExcelConstants.DEFAULT_PASSWORD;
+
+    /**
+     * 记录所有异常（默认开启）
+     */
+    boolean recordAllExceptions() default true;
 }

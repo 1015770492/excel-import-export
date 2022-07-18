@@ -81,7 +81,7 @@ public @interface ExcelTitleBind {
     /**
      * 单元格索引位置
      */
-    int index() default -1;
+    String index() default "-1";
 
 
 
