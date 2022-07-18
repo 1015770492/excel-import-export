@@ -342,7 +342,7 @@ public class ExcelImportUtils2 {
                             if (fieldValue == null || !StringUtils.hasText(fieldValue.toString())) {
                                 // 值为null或者""情况下，需要跑异常
                                 // 得到follow字段上的标题，抛出提示信息。
-                                ExcelCellBind titleAnnotation = field.getDeclaredAnnotation(ExcelCellBind.class);
+                                ExcelTitleBind titleAnnotation = field.getDeclaredAnnotation(ExcelTitleBind.class);
                                 titleMap.getJSONObject(follow).forEach((title, reverseMap) -> {
                                     if (reverseMap != null) {
                                         throw new RuntimeException("第" + row + "行，\"" + title + "\" 的值为:\"" + ((JSONObject) reverseMap).getString(value) + "\" 时，\"" + titleAnnotation.title() + "\" 值不能为空");
@@ -459,7 +459,7 @@ public class ExcelImportUtils2 {
             tableHeader.put(TableEnum.TABLE_HEADER_HEIGHT.name(), tableHeaderAnnotation.height());// 表头的高度
             // 2、得到表的Body信息
             for (Field field : fields) {
-                final ExcelCellBind annotationTitle = field.getDeclaredAnnotation(ExcelCellBind.class);
+                final ExcelTitleBind annotationTitle = field.getDeclaredAnnotation(ExcelTitleBind.class);
 
                 if (annotationTitle != null) {// 找到自定义的注解
                     JSONObject cellDesc = new JSONObject();// 单元格描述信息

@@ -15,7 +15,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
-import top.yumbo.excel.annotation.ExcelCellBind;
+import top.yumbo.excel.annotation.ExcelTitleBind;
 import top.yumbo.excel.annotation.ExcelCellStyle;
 import top.yumbo.excel.annotation.ExcelTableHeader;
 import top.yumbo.excel.entity.TitleBuilder;
@@ -713,7 +713,7 @@ public class ExcelExportUtils {
 
             // 2、得到表的Body信息
             for (Field field : fields) {
-                final ExcelCellBind annotationTitle = field.getDeclaredAnnotation(ExcelCellBind.class);// 获取ExcelCellEnumBindAnnotation注解
+                final ExcelTitleBind annotationTitle = field.getDeclaredAnnotation(ExcelTitleBind.class);// 获取ExcelCellEnumBindAnnotation注解
                 ExcelCellStyle[] annotationStyles = field.getDeclaredAnnotationsByType(ExcelCellStyle.class);// 获取单元格样式注解
                 if (annotationTitle != null) {// 找到自定义的注解
                     JSONObject titleDesc = new JSONObject();// 单元格描述信息

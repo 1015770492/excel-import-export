@@ -13,7 +13,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
-import top.yumbo.excel.annotation.ExcelCellBind;
+import top.yumbo.excel.annotation.ExcelTitleBind;
 import top.yumbo.excel.annotation.ExcelCellStyle;
 import top.yumbo.excel.annotation.ExcelTableHeader;
 import top.yumbo.excel.consts.ExcelConstants;
@@ -1076,7 +1076,7 @@ public class ExcelImportExportUtils {
 
             // 2、得到表的Body信息
             for (Field field : fields) {
-                final ExcelCellBind annotationTitle = field.getDeclaredAnnotation(ExcelCellBind.class);
+                final ExcelTitleBind annotationTitle = field.getDeclaredAnnotation(ExcelTitleBind.class);
                 if (annotationTitle != null) {// 找到自定义的注解
                     JSONObject cellDesc = new JSONObject();// 单元格描述信息
                     String title = annotationTitle.title();         // 获取标题，如果标题不存在则不进行处理
@@ -1141,7 +1141,7 @@ public class ExcelImportExportUtils {
 
             // 2、得到表的Body信息
             for (Field field : fields) {
-                final ExcelCellBind annotationTitle = field.getDeclaredAnnotation(ExcelCellBind.class);// 获取ExcelCellEnumBindAnnotation注解
+                final ExcelTitleBind annotationTitle = field.getDeclaredAnnotation(ExcelTitleBind.class);// 获取ExcelCellEnumBindAnnotation注解
                 ExcelCellStyle[] annotationStyles = field.getDeclaredAnnotationsByType(ExcelCellStyle.class);// 获取单元格样式注解
                 if (annotationTitle != null) {// 找到自定义的注解
                     JSONObject titleDesc = new JSONObject();// 单元格描述信息
