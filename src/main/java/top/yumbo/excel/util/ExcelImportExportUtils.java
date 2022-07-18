@@ -86,8 +86,7 @@ public class ExcelImportExportUtils {
     }
 
     /**
-     * excel col最多到IV
-     * 该算法可以支持到ZY 完全够用
+     * 数字转Excel的字母表示
      */
     public static String numToLetter(int index) {
         if (index < Integer.MAX_VALUE) {
@@ -1134,11 +1133,11 @@ public class ExcelImportExportUtils {
         JSONObject tableHeader = new JSONObject();// 表中主体数据信息
 
         // 1、先得到表头信息
-        final ExcelTableHeader tableHeaderAnnotation = clazz.getAnnotation(ExcelTableHeader.class);
-        if (tableHeaderAnnotation != null) {
-            tableHeader.put(TableEnum.TABLE_NAME.name(), tableHeaderAnnotation.sheetName());// 表的名称
-            tableHeader.put(TableEnum.TABLE_HEADER_HEIGHT.name(), tableHeaderAnnotation.height());// 表头的高度
-            tableHeader.put(TableEnum.RECORD_ALL_EXCEPTIONS.name(), tableHeaderAnnotation.recordAllExceptions());// 是否开启记录所有异常
+        final ExcelTableHeader excelTableHeaderAnnotation = clazz.getAnnotation(ExcelTableHeader.class);
+        if (excelTableHeaderAnnotation != null) {
+            tableHeader.put(TableEnum.TABLE_NAME.name(), excelTableHeaderAnnotation.sheetName());// 表的名称
+            tableHeader.put(TableEnum.TABLE_HEADER_HEIGHT.name(), excelTableHeaderAnnotation.height());// 表头的高度
+            tableHeader.put(TableEnum.RECORD_ALL_EXCEPTIONS.name(), excelTableHeaderAnnotation.recordAllExceptions());// 是否开启记录所有异常
 
             // 2、得到表的Body信息
             for (Field field : fields) {
