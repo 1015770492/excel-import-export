@@ -1,6 +1,7 @@
 package top.yumbo.excel.annotation.business;
 
 import java.lang.annotation.*;
+import java.util.function.Function;
 
 /**
  * @author jinhua
@@ -20,5 +21,5 @@ public @interface MapEntry {
      */
     String value() default "";
 
-
+    Class inter() default Function.class;
 }
