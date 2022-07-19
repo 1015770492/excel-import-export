@@ -218,10 +218,6 @@ public class ExcelImportExportUtils {
                     String exception = fieldDesc.getString(CellEnum.EXCEPTION.name());// 转换异常返回的消息
                     String size = fieldDesc.getString(CellEnum.SIZE.name());// 得到规模
                     boolean nullable = fieldDesc.getBoolean(CellEnum.NULLABLE.name());
-                    String positionMessage = "异常：第" + (i + 1) + "行的, " + numToLetter(index) + " 列";
-
-                    // 得到异常消息
-                    message = positionMessage + exception;
 
                     // 获取合并的单元格值（合并后的结果，逗号分隔）
                     String value = getMergeString(row, index, width, fieldType);
@@ -236,15 +232,15 @@ public class ExcelImportExportUtils {
                         if (!hasText) {
                             // 字段不能为空结果为空，这个空字段异常计数+1。除非count==length，然后重新计数，否则就是一行异常数据
                             // 进来了，说明不为空字段在excel中为空，所以需要报异常
-                            errMessage.add(positionMessage + "---单元格不能为空---所在标题：" + title);
+                            errMessage.add("异常：第" + (i + 1) + "行的, " + numToLetter(index+1) + " 列" + "---单元格不能为空---所在标题：" + title);
                             continue;
                         } else {
                             try {
                                 // 单元格有内容,要么正常、要么异常直接抛不能返回null 直接中止
                                 value = patternConvert(pattern, value);
-                                castValue = cast(value, fieldType, message, size);
+                                castValue = cast(value, fieldType, "异常：第" + (i + 1) + "行的, " + numToLetter(index+1) + " 列" + exception, size);
                             } catch (ClassCastException e) {
-                                errMessage.add(message + e.getMessage() + "\ttype:" + fieldType + "\tvalue:" + value);
+                                errMessage.add(e.getMessage() + "\ttype:" + fieldType + "\tvalue:" + value);
                                 continue;
                             }
                         }
@@ -254,7 +250,7 @@ public class ExcelImportExportUtils {
                         try {
                             // 单元格内容无关紧要。要么正常转换，要么返回null
                             value = patternConvert(pattern, value);
-                            castValue = cast(value, fieldType, message, size);
+                            castValue = cast(value, fieldType, null, size);
                         } catch (Exception e) {
                             //castValue=null;// 本来初始值就是null
                         }
@@ -1614,7 +1610,7 @@ public class ExcelImportExportUtils {
                 obj = LocalTime.parse(inputValue);
             }
         } catch (Exception e) {
-            throw new ClassCastException("类型转换异常，输入的文本内容（=><=符合中间就是待转换的内容）：=>" + inputValue + "<=.位置：" + exception);
+            throw new ClassCastException("类型转换异常: value = " + inputValue + ",字段type = " + aClass.getTypeName() + " 位置：" + exception);
         }
 
         return obj;

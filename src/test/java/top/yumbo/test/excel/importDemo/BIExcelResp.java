@@ -14,7 +14,7 @@ import java.time.LocalDate;
  * @date 2021/6/18 9:16
  */
 @Data
-@ExcelTableHeader(sheetName = "标准债券发或拟发行情况（含评级信息）", height = 2)
+@ExcelTableHeader( height = 2)
 public class BIExcelResp implements Serializable {
 
 
