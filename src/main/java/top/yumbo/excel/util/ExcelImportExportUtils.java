@@ -282,7 +282,7 @@ public class ExcelImportExportUtils {
                 if (!recordAllException) {
                     if (rowOfErrMessage.size() > 100) {
                         // 每个线程默认达到100Exception时就结束
-                        throw new RuntimeException(Thread.currentThread().getName()+"-->超过100条异常记录\n"+ printRowOfException(rowOfErrMessage));
+                        throw new RuntimeException(Thread.currentThread().getName() + "-->超过100条异常记录\n" + printRowOfException(rowOfErrMessage));
                     }
                 }
                 // 空行继续扫描,或者正常
@@ -1068,18 +1068,27 @@ public class ExcelImportExportUtils {
             // 扫描包含表头的那几行 记录需要记录的标题所在的索引列，填充INDEX
             for (int i = 0; i < height; i++) {
                 Row row = sheet.getRow(i);// 得到第i行数据（在表头内）
+                if (row == null) {
+                    continue;
+                }
                 // 遍历这行所有单元格，然后得到表头进行比较找到标题和注解上的titleName相同的单元格
-                row.forEach(cell -> {
+                for (Cell cell : row) {
                     // 得到单元格内容（统一为字符串类型）
                     String title = getStringCellValue(cell, String.class.getTypeName());
 
                     JSONObject cd = (JSONObject) cellDesc;
-                    // 如果标题相同找到了这单元格，获取单元格下标存入
-                    if (title.equals(cd.getString(CellEnum.TITLE_NAME.name()))) {
-                        int columnIndex = cell.getColumnIndex();// 找到了则取出索引存入jsonObject
-                        cd.put(CellEnum.COL.name(), columnIndex); // 补全描述信息
+                    Integer col = cd.getInteger(CellEnum.COL.name());
+                    if (col >= 0) {
+                        //说明填了index值，则根据index处理;跳过该字段
+                        break;
+                    } else {
+                        // 如果标题相同找到了这单元格，获取单元格下标存入
+                        if (title.equals(cd.getString(CellEnum.TITLE_NAME.name()))) {
+                            int columnIndex = cell.getColumnIndex();// 找到了则取出索引存入jsonObject
+                            cd.put(CellEnum.COL.name(), columnIndex); // 补全描述信息
+                        }
                     }
-                });
+                }
             }
 
         });
