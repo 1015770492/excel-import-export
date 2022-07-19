@@ -51,7 +51,7 @@ public class ExportForQuarter {
 
 当前项目修改maven仓库地址
 
-项目依赖地址：1.3.9
+项目依赖地址：1.3.10
 
 ```xml
 <repositories>
