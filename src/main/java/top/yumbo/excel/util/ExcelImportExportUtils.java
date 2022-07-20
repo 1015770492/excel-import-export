@@ -70,12 +70,12 @@ public class ExcelImportExportUtils {
 
     //表头信息
     private enum TableEnum {
-        WORK_BOOK, SHEET, TABLE_NAME, TABLE_HEADER, TABLE_HEADER_HEIGHT, RESOURCE, TYPE, TABLE_BODY, PASSWORD, RECORD_ALL_EXCEPTIONS
+        WORK_BOOK, SHEET, TABLE_NAME, TABLE_HEADER, TABLE_HEADER_HEIGHT, RESOURCE, TYPE, TABLE_BODY, PASSWORD, RECORD_ALL_EXCEPTIONS, TITLE_CACHE
     }
 
     // 单元格信息
     private enum CellEnum {
-        TITLE_NAME, FIELD_NAME, FIELD_TYPE, SIZE, PATTERN, NULLABLE, WIDTH, EXCEPTION, COL, ROW, SPLIT, PRIORITY, FORMAT, MAP_ENTRIES
+        TITLE_NAME, FIELD_NAME, FIELD_TYPE, SIZE, PATTERN, NULLABLE, WIDTH, EXCEPTION, COL, ROW, SPLIT, PRIORITY, FORMAT, MAP_ENTRIES, POSITION_TITLE, OFFSET
     }
 
     //样式的属性名
@@ -232,13 +232,13 @@ public class ExcelImportExportUtils {
                         if (!hasText) {
                             // 字段不能为空结果为空，这个空字段异常计数+1。除非count==length，然后重新计数，否则就是一行异常数据
                             // 进来了，说明不为空字段在excel中为空，所以需要报异常
-                            errMessage.add("异常：第" + (i + 1) + "行的, " + numToLetter(index+1) + " 列" + "---单元格不能为空---所在标题：" + title);
+                            errMessage.add("异常：第" + (i + 1) + "行的, " + numToLetter(index + 1) + " 列" + "---单元格不能为空---所在标题：" + title);
                             continue;
                         } else {
                             try {
                                 // 单元格有内容,要么正常、要么异常直接抛不能返回null 直接中止
                                 value = patternConvert(pattern, value);
-                                castValue = cast(value, fieldType, "异常：第" + (i + 1) + "行的, " + numToLetter(index+1) + " 列" + exception, size);
+                                castValue = cast(value, fieldType, "异常：第" + (i + 1) + "行的, " + numToLetter(index + 1) + " 列" + exception, size);
                             } catch (ClassCastException e) {
                                 errMessage.add(e.getMessage() + "\ttype:" + fieldType + "\tvalue:" + value);
                                 continue;
@@ -1040,6 +1040,12 @@ public class ExcelImportExportUtils {
         return fulledExcelDescData.getJSONObject(TableEnum.TABLE_BODY.name());
     }
 
+    /**
+     * 从json中获取到标题头的缓存信息
+     */
+    private static JSONObject getTitleCacheInfo(JSONObject fulledExcelDescData) {
+        return fulledExcelDescData.getJSONObject(TableEnum.TABLE_HEADER.name()).getJSONObject(TableEnum.TITLE_CACHE.name());
+    }
 
     /**
      * 从json中获取Excel表头部分数据
@@ -1058,9 +1064,13 @@ public class ExcelImportExportUtils {
         JSONObject tableHeaderDesc = getTableHeaderDescInfo(excelDescData);
         JSONObject tableBodyDesc = getExcelBodyDescInfo(excelDescData);
         Integer height = getTableHeight(tableHeaderDesc);// 得到表头占据了那几行
+        JSONObject titleCache = new JSONObject();
 
-        // 补充table每一项的index信息
+        // 补充table每一项的index信息(需要通过excel来操作)
         tableBodyDesc.forEach((fieldName, cellDesc) -> {
+            // 得到字段的信息
+            JSONObject filedInfo = (JSONObject) cellDesc;
+            Integer col = filedInfo.getInteger(CellEnum.COL.name());
             // 扫描包含表头的那几行 记录需要记录的标题所在的索引列，填充INDEX
             for (int i = 0; i < height; i++) {
                 Row row = sheet.getRow(i);// 得到第i行数据（在表头内）
@@ -1070,25 +1080,46 @@ public class ExcelImportExportUtils {
                 // 遍历这行所有单元格，然后得到表头进行比较找到标题和注解上的titleName相同的单元格
                 for (Cell cell : row) {
                     // 得到单元格内容（统一为字符串类型）
-                    String title = getStringCellValue(cell, String.class.getTypeName());
-
-                    JSONObject cd = (JSONObject) cellDesc;
-                    Integer col = cd.getInteger(CellEnum.COL.name());
-                    if (col >= 0) {
-                        //说明填了index值，则根据index处理;跳过该字段
+                    String cellValue = getStringCellValue(cell, String.class.getTypeName());
+                    if (col != -1) {
+                        titleCache.putIfAbsent(cellValue, col);
+                        //说明填了index值，则根据index处理;处理完这个字段了，需要处理下一个
                         break;
                     } else {
                         // 如果标题相同找到了这单元格，获取单元格下标存入
-                        if (title.equals(cd.getString(CellEnum.TITLE_NAME.name()))) {
+                        if (cellValue.equals(filedInfo.getString(CellEnum.TITLE_NAME.name()))) {
                             int columnIndex = cell.getColumnIndex();// 找到了则取出索引存入jsonObject
-                            cd.put(CellEnum.COL.name(), columnIndex); // 补全描述信息
+                            filedInfo.put(CellEnum.COL.name(), columnIndex); // 补全描述信息
+                            titleCache.putIfAbsent(cellValue, columnIndex);
                         }
                     }
                 }
             }
-
         });
+        tableHeaderDesc.put(TableEnum.TITLE_CACHE.name(), titleCache);
+        updateTitleIndex(excelDescData);
         return excelDescData;
+    }
+
+    /**
+     * 重复标题的处理方案：利用不重复标题的位置+当前标题与该标题的偏移
+     * 更新部分没有加title 或 index 的字段信息
+     * 但是 有些字段加了 position 和 offset信息
+     */
+    private static void updateTitleIndex(JSONObject excelDescData) {
+        JSONObject tableBodyDesc = getExcelBodyDescInfo(excelDescData);
+        JSONObject titleCacheInfo = getTitleCacheInfo(excelDescData);
+        tableBodyDesc.forEach((fieldName, cellDesc) -> {
+            JSONObject fieldInfo = (JSONObject) cellDesc;
+            String positionTitle = fieldInfo.getString(CellEnum.POSITION_TITLE.name());
+            if (StringUtils.hasText(positionTitle)) {
+                if (titleCacheInfo.containsKey(positionTitle)) {
+                    // 为了不写死 index的逻辑，这样相对灵活些
+                    int newCol = titleCacheInfo.getInteger(positionTitle) + fieldInfo.getInteger(CellEnum.OFFSET.name());
+                    fieldInfo.put(CellEnum.COL.name(), newCol);
+                }
+            }
+        });
     }
 
     /**
@@ -1164,6 +1195,8 @@ public class ExcelImportExportUtils {
                         cellDesc.put(CellEnum.SPLIT.name(), annotationTitle.exportSplit());// 导出字段的拆分
                         cellDesc.put(CellEnum.FORMAT.name(), annotationTitle.exportFormat());// 导出的模板格式
                         cellDesc.put(CellEnum.PRIORITY.name(), annotationTitle.exportPriority());// 导出拼串的顺序
+                        cellDesc.put(CellEnum.POSITION_TITLE.name(), annotationTitle.positionTitle());// 定位
+                        cellDesc.put(CellEnum.OFFSET.name(), annotationTitle.offset());// 偏移
 
                         // 以字段名作为key
                         tableBody.put(field.getName(), cellDesc);// 存入这个标题名单元格的的描述信息，后面还需要补全INDEX
