@@ -80,11 +80,21 @@ public @interface ExcelTitleBind {
     boolean nullable() default false;
 
     /**
-     * 单元格索引位置
+     * 单元格索引位置，如果标题重复，没法通过标题来得到index，则可以通过 positionTitle() + offset() 来更新
      */
     String index() default "-1";
 
+    /**
+     * 重复标题的处理方案：利用不重复标题的位置 positionTitle + 当前标题到不重复标题的偏移offset量
+     * 这样就可以不写死index
+     * 定位
+     */
+    String positionTitle() default "";
 
+    /**
+     * 偏移
+     */
+    int offset() default 1;
 
 
 }

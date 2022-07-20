@@ -51,7 +51,7 @@ public class ExportForQuarter {
 
 当前项目修改maven仓库地址
 
-项目依赖地址：1.3.11
+项目依赖地址：1.3.12
 
 ```xml
 <repositories>
@@ -70,7 +70,7 @@ public class ExportForQuarter {
     <dependency>
         <groupId>top.yumbo.excel</groupId>
         <artifactId>excel-import-export</artifactId>
-        <version>1.3.11</version>
+        <version>1.3.12</version>
     </dependency>
 
 </dependencies>
