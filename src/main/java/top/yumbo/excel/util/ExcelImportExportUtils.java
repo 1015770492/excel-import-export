@@ -17,6 +17,7 @@ import org.springframework.web.client.RestTemplate;
 import top.yumbo.excel.annotation.ExcelTitleBind;
 import top.yumbo.excel.annotation.ExcelCellStyle;
 import top.yumbo.excel.annotation.ExcelTableHeader;
+import top.yumbo.excel.annotation.MapEntry;
 import top.yumbo.excel.consts.ExcelConstants;
 import top.yumbo.excel.entity.CellStyleBuilder;
 import top.yumbo.excel.entity.TitleBuilder;
@@ -70,12 +71,12 @@ public class ExcelImportExportUtils {
 
     //表头信息
     private enum TableEnum {
-        WORK_BOOK, SHEET, TABLE_NAME, TABLE_HEADER, TABLE_HEADER_HEIGHT, RESOURCE, TYPE, TABLE_BODY, PASSWORD, RECORD_ALL_EXCEPTIONS, TITLE_CACHE
+        WORK_BOOK, SHEET, TITLE_MAP, TABLE_NAME, TABLE_HEADER, TABLE_HEADER_HEIGHT, RESOURCE, TYPE, TABLE_BODY, PASSWORD, RECORD_ALL_EXCEPTIONS, REVERSE_MAP, TITLE_CACHE
     }
 
     // 单元格信息
     private enum CellEnum {
-        TITLE_NAME, FIELD_NAME, FIELD_TYPE, SIZE, PATTERN, NULLABLE, WIDTH, EXCEPTION, COL, ROW, SPLIT, PRIORITY, FORMAT, MAP_ENTRIES, POSITION_TITLE, OFFSET
+        TITLE_NAME, FIELD_NAME, SPLIT_REGEX, REPLACE_ALL_OR_PART, FIELD_TYPE, SIZE, PATTERN, NULLABLE, WIDTH, EXCEPTION, COL, ROW, SPLIT, PRIORITY, FORMAT, MAP_ENTRIES, MAP, POSITION_TITLE, OFFSET
     }
 
     //样式的属性名
@@ -85,54 +86,6 @@ public class ExcelImportExportUtils {
         FORE_COLOR, ROTATION, FILL_PATTERN, AUTO_SHRINK, TOP, BOTTOM, LEFT, RIGHT
     }
 
-    /**
-     * 数字转Excel的字母表示
-     */
-    public static String numToLetter(int index) {
-        if (index < Integer.MAX_VALUE) {
-            if (index >= 1 && index <= 26) {
-                return intMap.get(index);
-            } else {
-                int temp = index % 26;
-                index -= temp;
-                int t = index / 26;
-                String s = numToLetter(temp);
-                if (t < 26) {
-                    return intMap.get(t) + s;
-                } else {
-                    return numToLetter(t) + s;
-                }
-            }
-        } else {
-            throw new OutOfRangeException(index, Integer.highestOneBit(index), Integer.lowestOneBit(index));
-        }
-
-    }
-
-    /**
-     * excel 字母表示转数字（26进制）
-     */
-    public static int letterToNum(String index) {
-        double num = 0.0;
-        index = index.trim();
-        try {
-            // 如果是数字直接解析返回，如果不是则经过下面转换
-            return Integer.parseInt(index);
-        } catch (Exception ignored) {
-        }
-
-        index = index.toUpperCase();
-        for (int i = 0; i < index.length(); i++) {
-            int idx = index.length() - i - 1;
-            String ch = index.substring(idx, idx + 1);
-            if (intMap.containsValue(ch)) {
-                num = num + (ch.charAt(0) - 'A' + 1) * Math.pow(26, i);
-            } else {
-                throw new RuntimeException(index);
-            }
-        }
-        return (int) num - 1;
-    }
 
     /**
      * 并发导入任务
@@ -187,7 +140,6 @@ public class ExcelImportExportUtils {
          */
         private List<T> praseRowsToList() throws RuntimeException {
             // 从表头描述信息得到表头的高
-            String message = "";// 异常消息
             final ArrayList<T> result = new ArrayList<>();
 
             ArrayList<List<String>> rowOfErrMessage = new ArrayList<>();
@@ -212,16 +164,36 @@ public class ExcelImportExportUtils {
                     }
                     Integer width = fieldDesc.getInteger(CellEnum.WIDTH.name());// 得到宽度，如果宽度不为1则需要进行合并多个单元格的内容
 
+                    Boolean containsReplaceAll = fieldDesc.getBoolean(CellEnum.REPLACE_ALL_OR_PART.name());// 替换所有还是替换部分
+                    String splitRegex = fieldDesc.getString(CellEnum.SPLIT_REGEX.name());// 进行正则切割
+
                     String fieldName = fieldDesc.getString(CellEnum.FIELD_NAME.name());// 字段名称
                     String title = fieldDesc.getString(CellEnum.TITLE_NAME.name());// 标题名称
                     String fieldType = fieldDesc.getString(CellEnum.FIELD_TYPE.name());// 字段类型
                     String exception = fieldDesc.getString(CellEnum.EXCEPTION.name());// 转换异常返回的消息
                     String size = fieldDesc.getString(CellEnum.SIZE.name());// 得到规模
                     boolean nullable = fieldDesc.getBoolean(CellEnum.NULLABLE.name());
+                    final JSONObject map = fieldDesc.getJSONObject(CellEnum.MAP.name());// 字典
 
                     // 获取合并的单元格值（合并后的结果，逗号分隔）
                     String value = getMergeString(row, index, width, fieldType);
+                    if (StringUtils.hasText(splitRegex)) {
+                        // 判断是否需要正则切割，有则将value进行切割处理
+                        String[] split = value.split(splitRegex);
 
+                        StringBuilder stringBuilder = new StringBuilder();
+                        for (int j = 0; j < split.length; j++) {
+                            stringBuilder.append(replaceAllOrReplacePart(split[j], map, containsReplaceAll));
+                            if (j + 1 < split.length) {
+                                stringBuilder.append(splitRegex);
+                            }
+                        }
+                        // 将处理完后的内容重新赋值给value
+                        value = stringBuilder.toString();
+                    } else {
+                        // 没有内容就直接替换
+                        value = replaceAllOrReplacePart(value, map, containsReplaceAll);
+                    }
                     // 获取正则表达式，如果有正则，则进行正则截取value（相当于从单元格中取部分）
                     String pattern = fieldDesc.getString(CellEnum.PATTERN.name());
                     boolean hasText = StringUtils.hasText(value);
@@ -255,20 +227,20 @@ public class ExcelImportExportUtils {
                             //castValue=null;// 本来初始值就是null
                         }
                     }
-                    // 默认添加为null，只有正常才添加正常，否则中途抛异常直接中止
                     oneRow.put(fieldName, castValue);// 添加数据
                 }
 
                 // 判断这行数据是否正常
                 // 正常情况下count是等于length的，因为每个字段都需要处理
                 if (errMessage.size() == 0) {
-                    T t = JSONObject.parseObject(oneRow.toJSONString(), clazz);
                     // 进行jsr303校验
-                    Set<ConstraintViolation<T>> set = validator.validate(t);
-                    for (ConstraintViolation<T> constraintViolation : set) {
-                        throw new RuntimeException("第" + oneRow.getBigInteger(CellEnum.ROW.name()) + "行出现异常：" + constraintViolation.getMessage());
+                    try {
+                        T t = JSONObject.parseObject(oneRow.toJSONString(), clazz);
+                        t = CheckLogicUtils.checkNullLogicWithJSR303(t, validator);
+                        result.add(t);// 正常情况下添加一条数据
+                    } catch (RuntimeException e) {
+                        errMessage.add("第" + oneRow.getBigInteger(CellEnum.ROW.name()) + "行数据异常：" + e.getMessage());
                     }
-                    result.add(t);// 正常情况下添加一条数据
 
                 } else {
                     // 该行存在error
@@ -306,15 +278,33 @@ public class ExcelImportExportUtils {
 
 
     }
+    /**
+     * 得到映射结果
+     * 大都情况下containsReplaceAll=true
+     * 如果containsReplaceAll=false，需要注意替换部分，必须MapEntry中本身的key不能包含，否则就会替换错误的字典项
+     */
+    private static String replaceAllOrReplacePart(String value, JSONObject map, Boolean containsReplaceAll) {
+        // 转换为字典项
+        value = value.trim();// 去掉首尾多余空格等无实意符合
+        if (containsReplaceAll) {
+            // 是完全替换
+            for (Map.Entry<String, Object> mapEntry : map.entrySet()) {
+                if (value.equals(mapEntry.getKey())) {
+                    value = mapEntry.getValue().toString();
+                    break;
+                }
+            }
 
-    private static String listToString(List<String> list) {
-        if (list == null || list.size() == 0) {
-            return "[]";
-        } else if (list.size() == 1) {
-            return list.toString();
         } else {
-            return "[" + list.stream().reduce((str1, str2) -> str1 + "\n" + str2).get() + "]";
+            // 不是完全替换，只替换部分
+            for (Map.Entry<String, Object> mapEntry : map.entrySet()) {
+                if (value.contains(mapEntry.getKey())) {
+                    value = value.replaceAll(mapEntry.getKey(), mapEntry.getValue().toString());
+                    break;
+                }
+            }
         }
+        return value;
     }
 
     /**
@@ -557,6 +547,90 @@ public class ExcelImportExportUtils {
 
         }
 
+    }
+
+    private static String listToString(List<String> list) {
+        if (list == null || list.size() == 0) {
+            return "[]";
+        } else if (list.size() == 1) {
+            return list.toString();
+        } else {
+            return "[" + list.stream().reduce((str1, str2) -> str1 + "\n" + str2).get() + "]";
+        }
+    }
+
+    /**
+     * 数字转Excel的字母表示
+     */
+    public static String numToLetter(int index) {
+        if (index < Integer.MAX_VALUE) {
+            if (index >= 1 && index <= 26) {
+                return intMap.get(index);
+            } else {
+                int temp = index % 26;
+                index -= temp;
+                int t = index / 26;
+                String s = numToLetter(temp);
+                if (t < 26) {
+                    return intMap.get(t) + s;
+                } else {
+                    return numToLetter(t) + s;
+                }
+            }
+        } else {
+            throw new OutOfRangeException(index, Integer.highestOneBit(index), Integer.lowestOneBit(index));
+        }
+
+    }
+
+    /**
+     * excel 字母表示转数字（26进制）
+     */
+    public static int letterToNum(String index) {
+        double num = 0.0;
+        index = index.trim();
+        try {
+            // 如果是数字直接解析返回，如果不是则经过下面转换
+            return Integer.parseInt(index);
+        } catch (Exception ignored) {
+        }
+
+        index = index.toUpperCase();
+        for (int i = 0; i < index.length(); i++) {
+            int idx = index.length() - i - 1;
+            String ch = index.substring(idx, idx + 1);
+            if (intMap.containsValue(ch)) {
+                num = num + (ch.charAt(0) - 'A' + 1) * Math.pow(26, i);
+            } else {
+                throw new RuntimeException(index);
+            }
+        }
+        return (int) num - 1;
+    }
+
+    /**
+     * 根据MapEntry注解得到字典映射，用于转换
+     */
+    private static JSONObject getMapByMapEntries(Field field) {
+        final MapEntry[] mapEntries = field.getDeclaredAnnotationsByType(MapEntry.class);
+        final JSONObject mutiMap = new JSONObject();
+        final JSONObject map = new JSONObject();
+        final JSONObject reverseMap = new JSONObject();
+
+        for (MapEntry mapEntry : mapEntries) {
+            if (mapEntry != null) {
+                map.put(mapEntry.key(), mapEntry.value());
+                reverseMap.put(mapEntry.value(), mapEntry.key());
+            }
+        }
+        mutiMap.put(CellEnum.MAP.name(), map);
+        mutiMap.put(TableEnum.REVERSE_MAP.name(), reverseMap);
+
+        if (map.size() == 0 || reverseMap.size() == 0) {
+            mutiMap.put(CellEnum.MAP.name(), null);
+            mutiMap.put(TableEnum.REVERSE_MAP.name(), null);
+        }
+        return mutiMap;
     }
 
     /**
@@ -1168,6 +1242,8 @@ public class ExcelImportExportUtils {
         JSONObject tableBody = new JSONObject();// 表中主体数据信息
         JSONObject tableHeader = new JSONObject();// 表中主体数据信息
 
+        // 收集字段-标题 的关系
+        JSONObject titleMap = new JSONObject();
         // 1、先得到表头信息
         final ExcelTableHeader excelTableHeaderAnnotation = clazz.getAnnotation(ExcelTableHeader.class);
         if (excelTableHeaderAnnotation != null) {
@@ -1182,6 +1258,15 @@ public class ExcelImportExportUtils {
                     JSONObject cellDesc = new JSONObject();// 单元格描述信息
                     String title = annotationTitle.title();         // 获取标题，如果标题不存在则不进行处理
                     if (StringUtils.hasText(title)) {
+                        // 获取字典映射
+                        JSONObject mutiMap = getMapByMapEntries(field);
+                        cellDesc.put(CellEnum.MAP.name(), mutiMap.get(CellEnum.MAP.name()));// 字典映射
+                        JSONObject obj = new JSONObject();
+                        obj.put(title, mutiMap.get(TableEnum.REVERSE_MAP.name()));// 字典反转
+                        titleMap.put(field.getName(), obj);// 将反转Map存入titleMap中
+
+                        cellDesc.put(CellEnum.SPLIT_REGEX.name(), annotationTitle.splitRegex()); // 正则切割符
+                        cellDesc.put(CellEnum.REPLACE_ALL_OR_PART.name(), annotationTitle.replaceAll());// 是否包含替换所有,默认是替换所有
 
                         cellDesc.put(CellEnum.TITLE_NAME.name(), title);// 标题名称
                         cellDesc.put(CellEnum.FIELD_NAME.name(), field.getName());// 字段名称
@@ -1205,6 +1290,7 @@ public class ExcelImportExportUtils {
             }
         }
         excelDescData.put(TableEnum.TABLE_HEADER.name(), tableHeader);// 将表头记录信息注入
+        excelDescData.put(TableEnum.TITLE_MAP.name(), titleMap);// 将表头记录信息注入
         excelDescData.put(TableEnum.TABLE_BODY.name(), tableBody);// 将表的body记录信息注入
         return excelDescData;// 返回记录的所有信息
     }

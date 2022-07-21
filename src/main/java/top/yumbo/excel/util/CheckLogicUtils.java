@@ -2,15 +2,12 @@ package top.yumbo.excel.util;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import org.springframework.beans.BeanUtils;
 import top.yumbo.excel.annotation.CheckNullLogic;
 import top.yumbo.excel.annotation.CheckValues;
 import top.yumbo.excel.annotation.MapEntry;
 
 import javax.validation.ConstraintViolation;
-import javax.validation.Validation;
 import javax.validation.Validator;
-import javax.validation.ValidatorFactory;
 import java.lang.reflect.Field;
 import java.util.Set;
 
@@ -24,14 +21,14 @@ public class CheckLogicUtils {
     /**
      * 校验空逻辑
      */
-    public static <T> T checkNullLogicWithJSR303(T t) {
-        Class<?> clazz = t.getClass();
+    public static <T> T checkNullLogicWithJSR303(T t, Validator validator) {
+        Class<? extends T> clazz = (Class<T>) t.getClass();
+
         JSONObject fieldMap = getFieldMap(clazz);
-        T entity = (T) checkNullLogic(JSONObject.parseObject(JSON.toJSONString(t)), clazz, fieldMap);
-        // 校验值
-        checkValue(t, clazz);
-        ValidatorFactory vf = Validation.buildDefaultValidatorFactory();
-        Validator validator = vf.getValidator();
+        // 检查字段空
+        T entity = checkLogicNull(JSONObject.parseObject(JSON.toJSONString(t)), clazz, fieldMap);
+        // 校验值是否在注解范围内
+        checkValues(t, clazz);
         // 进行jsr303校验
         Set<ConstraintViolation<T>> set = validator.validate(entity);
         for (ConstraintViolation<T> constraintViolation : set) {
@@ -41,9 +38,9 @@ public class CheckLogicUtils {
     }
 
     /**
-     * 强校验，用于校验字典
+     * 强校验，用于校验字典,如果加了CheckValues说明该字段的值必须符合CheckValues中的值
      */
-    private static <T> void checkValue(T t, Class<?> clazz) {
+    private static <T> void checkValues(T t, Class<?> clazz) {
         JSONObject data = JSONObject.parseObject(JSON.toJSONString(t));
         for (Field field : clazz.getDeclaredFields()) {
             CheckValues checkValues = field.getDeclaredAnnotation(CheckValues.class);
@@ -64,9 +61,9 @@ public class CheckLogicUtils {
     }
 
     /**
-     * 校验非空逻辑
+     * 校验逻辑空，相应得逻辑为空则会报错
      */
-    private static <T> T checkNullLogic(JSONObject data, Class<T> tClass, JSONObject fieldMap) {
+    private static <T> T checkLogicNull(JSONObject data, Class<T> tClass, JSONObject fieldMap) {
         for (Field field : tClass.getDeclaredFields()) {
             CheckNullLogic annotation = field.getDeclaredAnnotation(CheckNullLogic.class);
             if (annotation != null) {

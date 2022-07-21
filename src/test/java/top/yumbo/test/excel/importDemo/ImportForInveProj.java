@@ -106,7 +106,6 @@ public class ImportForInveProj {
 
     /** 是否为省重中之重项目 */
     @ExcelTitleBind(title = "是否为省重中之重项目")
-
     @MapEntry(key = "是", value = "1")
     @MapEntry(key = "否", value = "0")
     //@ApiModelProperty(value = "是否为省重中之重项目")
@@ -114,7 +113,6 @@ public class ImportForInveProj {
 
     /** 是否为市重大项目 */
     @ExcelTitleBind(title = "是否为市重大项目")
-
     @MapEntry(key = "是", value = "1")
     @MapEntry(key = "否", value = "0")
     //@ApiModelProperty(value = "是否为市重大项目")

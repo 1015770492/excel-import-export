@@ -5,7 +5,7 @@ import top.yumbo.excel.util.ExcelImportExportUtils;
 import java.io.FileInputStream;
 import java.util.List;
 
-public class demo2 {
+public class ImportForInveProjDemo {
 
     public static void main(String[] args) throws Exception {
         String file = "src/test/java/top/yumbo/test/excel/demo.xls";
