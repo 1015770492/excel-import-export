@@ -32,10 +32,10 @@ public class ExportForQuarter {
     // 根据正则截取单元格内容关于年份的值。其中exportFormat是导出excel填充到单元格的内容
     //	@Min(value = 2017,message = "最小年份是2017年") 支持jsr303校验注解
     //	@Max(value = 2021,message = "最大年份是2021年")
-    @ExcelCellBind(title = "时间", exportFormat = "$0年")
+    @ExcelTitleBind(title = "时间", exportFormat = "$0年")
     private Integer year;
 
-    @ExcelCellBind(title = "时间", exportFormat = "第$1季度", exportPriority = 1)
+    @ExcelTitleBind(title = "时间", exportFormat = "第$1季度", exportPriority = 1)
     private Integer quarter;
 }
 ```
@@ -52,7 +52,7 @@ public class ExportForQuarter {
 
 当前项目修改maven仓库地址
 
-项目依赖地址：1.3.13
+项目依赖地址：1.3.14
 
 ```xml
 <repositories>
@@ -71,7 +71,7 @@ public class ExportForQuarter {
     <dependency>
         <groupId>top.yumbo.excel</groupId>
         <artifactId>excel-import-export</artifactId>
-        <version>1.3.13</version>
+        <version>1.3.14</version>
     </dependency>
 
 </dependencies>
@@ -102,7 +102,7 @@ tableName：表的名称，相当于sheetName可以不填。
 
 ### 场景：
 
-`@ExcelCellBind(title = "地区",width = 2,exception = "地区不存在")`
+`@ExcelTitleBind(title = "地区",width = 2,exception = "地区不存在")`
 title：表是单元格属性列的标题
 width：表示横向合并了多少个单元格
 exception：自定义的异常消息
@@ -111,9 +111,9 @@ exception：自定义的异常消息
 
 ##### 导入情景一、合并多个单元格内容
 
-合并：标题index+width个单元格`@ExcelCellBind(title = "地区",width = 2)`
+合并：标题index+width个单元格`@ExcelTitleBind(title = "地区",width = 2)`
 
-单个单元格：直接`@ExcelCellBind(title = "年份")`
+单个单元格：直接`@ExcelTitleBind(title = "年份")`
 
 ![在这里插入图片描述](https://img-blog.csdnimg.cn/20210709091936476.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3FxXzQxODEzMjA4,size_16,color_FFFFFF,t_70)
 
@@ -124,13 +124,13 @@ exception：自定义的异常消息
 @ExcelTableHeader(height = 4)// 表头占4行
 public class XXXForExcel {
 
-    @ExcelCellBind(title = "地区",width = 2)
+    @ExcelTitleBind(title = "地区",width = 2)
     private String regionCode;
 
     /**
      * 年份
      */
-    @ExcelCellBind(title = "年份")
+    @ExcelTitleBind(title = "年份")
     private Integer year;
     /**
      * 对于不想返回的则不加注解即可,或者title为 ""
@@ -161,9 +161,9 @@ public class ImportForQuarter {
     /**
      * 正则截取部分内容
      */
-    @ExcelCellBind(title = "时间", importPattern = "([0-9]{4})年")
+    @ExcelTitleBind(title = "时间", importPattern = "([0-9]{4})年")
     private Integer year;
-    @ExcelCellBind(title = "时间", importPattern = "([1-4]{1})季")
+    @ExcelTitleBind(title = "时间", importPattern = "([1-4]{1})季")
     private Integer quarter;
 }
 ```
@@ -184,7 +184,7 @@ public class ImportForQuarter {
      * 单位用size进行设置，例如表格上标注的单位是亿，这里的size就是下面的值。
      * 如果单位是%则填入字符串0.01即可以此类推
      */
-    @ExcelCellBind(title = "合计违约规模",size = "100000000")
+    @ExcelTitleBind(title = "合计违约规模",size = "100000000")
     private BigDecimal w5;
 }
 ```
@@ -200,7 +200,7 @@ public class ImportForQuarter {
 @ExcelTableHeader(height = 2)
 public class PIMExcel {
     
-    @ExcelCellBind(title = "*房屋建筑面积", nullable = true)
+    @ExcelTitleBind(title = "*房屋建筑面积", nullable = true)
     private BigDecimal bAIM;
 
     @MapEntry(key = "公顷", value = "10000")
@@ -208,11 +208,11 @@ public class PIMExcel {
     @MapEntry(key = "平方米", value = "1")
     @MapEntry(key = "亩", value = "666.66667")
     @AccountBigDecimalValue(follow = "bAIM", decimalFormat = "#.##")
-    @ExcelCellBind(title = "*房屋建筑面积单位")
+    @ExcelTitleBind(title = "*房屋建筑面积单位")
     private String bAIMSize;
     
     // 这个用于存储，亩、公顷的信息。如果想要映射成字典可以加上@MapEntry
-    @ExcelCellBind(title = "*房屋建筑面积单位")
+    @ExcelTitleBind(title = "*房屋建筑面积单位")
     private String bAIMUnit;
 }
 ```
@@ -242,15 +242,15 @@ public class PIMExcel {
     @MapEntry(key = "土地使用权", value = "8001301")
     @MapEntry(key = "不动产", value = "8001302")
     @MapEntry(key = "在建工程", value = "8001303")
-    @ExcelCellBind(title = "*抵押标的类型")
+    @ExcelTitleBind(title = "*抵押标的类型")
     private String mSTIm;
     
-    @ExcelCellBind(title = "*房屋建筑面积", nullable = true)
+    @ExcelTitleBind(title = "*房屋建筑面积", nullable = true)
     @CheckNullLogic(follow = "mSTIm", values = {"8001302", "8001303"})
     private BigDecimal bAIM;
 
 	@CheckNullLogic(follow = "mSTIm", values = {"8001302", "8001303"})
-    @ExcelCellBind(title = "*房屋建筑面积单位", nullable = true)
+    @ExcelTitleBind(title = "*房屋建筑面积单位", nullable = true)
     private String bAIMUnit;
     
 }
@@ -263,15 +263,15 @@ public class PIMExcel {
 @ExcelTableHeader(height = 2)
 public class PIMExcel {
     
-    @ExcelCellBind(title = "*抵押标的类型")
+    @ExcelTitleBind(title = "*抵押标的类型")
     private String mSTIm;
     
-    @ExcelCellBind(title = "*房屋建筑面积", nullable = true)
+    @ExcelTitleBind(title = "*房屋建筑面积", nullable = true)
     @CheckNullLogic(follow = "mSTIm", values = {"不动产", "在建工程"})
     private BigDecimal bAIM;
 
 	@CheckNullLogic(follow = "mSTIm", values = {"不动产", "在建工程"})
-    @ExcelCellBind(title = "*房屋建筑面积单位", nullable = true)
+    @ExcelTitleBind(title = "*房屋建筑面积单位", nullable = true)
     private String bAIMUnit;
     
 }
@@ -319,7 +319,7 @@ public class ExportForQuarter {
     /**
      * 年份
      */
-    @ExcelCellBind(title = "时间", importPattern = "([0-9]{4})年", exportFormat = "$0年")
+    @ExcelTitleBind(title = "时间", importPattern = "([0-9]{4})年", exportFormat = "$0年")
     @ExcelCellStyle(id="1",表格的样式1,字体以及单元格样式的设置，具体看注解内部的功能)
     @ExcelCellStyle(id="2",表格的样式2，可以重复注解，为了实现部分样式的调整)
     private Integer year;
@@ -328,69 +328,69 @@ public class ExportForQuarter {
      * 季度，填写1到4的数字
      * 导入用到的则用importXXX命名，导出用exportXXX命名，其他则是通用的配置
      */
-    @ExcelCellBind(title = "时间", importPattern = "([1-4]{1})季", exportFormat = "第$1季", exportPriority = 1)
+    @ExcelTitleBind(title = "时间", importPattern = "([1-4]{1})季", exportFormat = "第$1季", exportPriority = 1)
     @ExcelCellStyle
     private Integer quarter;
 
     /**
      * 地区代码，存储最末一级的地区代码就可以
      */
-    @ExcelCellBind(title = "地区", width = 2, exportSplit = ",", exportFormat = "$0,$1")
+    @ExcelTitleBind(title = "地区", width = 2, exportSplit = ",", exportFormat = "$0,$1")
     @ExcelCellStyle(可以不加该注解，因为有默)
     private String regionCode;
 
     /**
      * 违约主体家数
      */
-    @ExcelCellBind(title = "违约主体家数", exception = "默认异常：格式不正确，可以自定义异常提示")
+    @ExcelTitleBind(title = "违约主体家数", exception = "默认异常：格式不正确，可以自定义异常提示")
     private Integer breachNumber;
 
     /**
      * 合计违约规模
      */
-    @ExcelCellBind(title = "合计违约规模", size = "100000000")
+    @ExcelTitleBind(title = "合计违约规模", size = "100000000")
     private BigDecimal breachTotalScale;
 
     /**
      * 风险性质 字典1260
      */
-    @ExcelCellBind(title = "风险性质")
+    @ExcelTitleBind(title = "风险性质")
     private String riskNature;
 
     /**
      * 风险品种 字典1261
      */
-    @ExcelCellBind(title = "风险品种")
+    @ExcelTitleBind(title = "风险品种")
     private String riskVarieties;
 
     /**
      * 区域偿债统筹管理能力 是否字典1022
      */
-    @ExcelCellBind(title = "区域偿债统筹管理能力")
+    @ExcelTitleBind(title = "区域偿债统筹管理能力")
     private String regionDebtManage;
 
     /**
      * 区域内私募可转债历史信用记录 是否字典1022
      */
-    @ExcelCellBind(title = "区域内私募可转债历史信用记录")
+    @ExcelTitleBind(title = "区域内私募可转债历史信用记录")
     private String calBondsHistoryCredit;
 
     /**
      * 还款可协调性 强弱字典1259
      */
-    @ExcelCellBind(title = "还款可协调性")
+    @ExcelTitleBind(title = "还款可协调性")
     private String repayCoordinated;
 
     /**
      * 业务合作可协调性 强弱字典1259
      */
-    @ExcelCellBind(title = "业务合作可协调性")
+    @ExcelTitleBind(title = "业务合作可协调性")
     private String cooperationCoordinated;
 
     /**
      * 数财通系统部署情况 是否字典1022
      */
-    @ExcelCellBind(title = "数财通系统部署情况")
+    @ExcelTitleBind(title = "数财通系统部署情况")
     private String sctDeployStatus;
 
 
@@ -473,7 +473,7 @@ if (quarterList != null) {
 
 ![在这里插入图片描述](https://img-blog.csdnimg.cn/20210708165949864.png)
 
-### 2、`@ExcelCellBind` 
+### 2、`@ExcelTitleBind` 
 
 用于单元格和字段的绑定关系
 
@@ -547,7 +547,7 @@ if (quarterList != null) {
 部分内容用于导出，和其它功能
 
 ```java
-public @interface ExcelCellBind {
+public @interface ExcelTitleBind {
     /**
      * 绑定的标题名称，
      * 通过扫描单元格表头可以确定表头所在的索引列，然后在根据width就能确定单元格

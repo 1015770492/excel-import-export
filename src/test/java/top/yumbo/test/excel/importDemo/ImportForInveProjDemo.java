@@ -14,7 +14,12 @@ public class ImportForInveProjDemo {
         List<ImportForInveProj> quarterList;
         try {
             quarterList = ExcelImportExportUtils.importExcel(new FileInputStream(file), ImportForInveProj.class, 2000);
-            System.out.println(quarterList);
+            for (int i = 0; i < quarterList.size(); i++) {
+                System.out.println("第"+(i+1)+"行数据：");
+                System.out.println(quarterList.get(i));
+                System.out.println();
+            }
+
         } catch (Exception e) {
             e.printStackTrace();
         }

@@ -76,7 +76,7 @@ public @interface ExcelTitleBind {
     /**
      * 默认不可以为空
      */
-    boolean nullable() default false;
+    boolean nullable() default true;
 
     /**
      * 单元格索引位置

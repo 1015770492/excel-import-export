@@ -285,16 +285,21 @@ public class ExcelImportExportUtils {
      * 如果containsReplaceAll=false，需要注意替换部分，必须MapEntry中本身的key不能包含，否则就会替换错误的字典项
      */
     private static String replaceAllOrReplacePart(String value, JSONObject map, Boolean containsReplaceAll) {
+        if (map == null) {
+            return value.trim();
+        }
         // 转换为字典项
         value = value.trim();// 去掉首尾多余空格等无实意符合
         if (containsReplaceAll) {
             // 是完全替换
+
             for (Map.Entry<String, Object> mapEntry : map.entrySet()) {
                 if (value.equals(mapEntry.getKey())) {
                     value = mapEntry.getValue().toString();
                     break;
                 }
             }
+
 
         } else {
             // 不是完全替换，只替换部分
