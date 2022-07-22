@@ -77,7 +77,7 @@ public @interface ExcelTitleBind {
     /**
      * 默认不可以为空
      */
-    boolean nullable() default false;
+    boolean nullable() default true;
 
     /**
      * 单元格索引位置，如果标题重复，没法通过标题来得到index，则可以通过 positionTitle() + offset() 来更新
