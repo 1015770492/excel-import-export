@@ -4,7 +4,11 @@ package top.yumbo.excel.util;
 import com.alibaba.fastjson.JSONObject;
 import org.apache.poi.ss.usermodel.*;
 import org.springframework.util.StringUtils;
-import top.yumbo.excel.annotation.*;
+import top.yumbo.excel.annotation.business.ConvertBigDecimal;
+import top.yumbo.excel.annotation.business.CheckNullLogic;
+import top.yumbo.excel.annotation.business.MapEntry;
+import top.yumbo.excel.annotation.core.ExcelTableHeader;
+import top.yumbo.excel.annotation.core.ExcelTitleBind;
 
 import javax.validation.ConstraintViolation;
 import javax.validation.Validation;
@@ -271,7 +275,7 @@ public class ExcelImportUtils2 {
      */
     private static <T> void updateBigDecimalValue(JSONObject oneRow, Class<T> tClass) {
         for (Field field : tClass.getDeclaredFields()) {
-            AccountBigDecimalValue accountBigDecimalValue = field.getDeclaredAnnotation(AccountBigDecimalValue.class);
+            ConvertBigDecimal accountBigDecimalValue = field.getDeclaredAnnotation(ConvertBigDecimal.class);
             if (accountBigDecimalValue != null) {
                 String follow = accountBigDecimalValue.follow();
 
