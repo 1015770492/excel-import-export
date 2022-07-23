@@ -929,6 +929,7 @@ public class ExcelImportExportUtils {
             filedInfoArr.forEach((cd) -> {
                 JSONObject cellDesc = (JSONObject) cd;
                 Integer col = cellDesc.getInteger(CellEnum.COL.name());
+                if (col == null) col = -1;
                 // 扫描包含表头的那几行 记录需要记录的标题所在的索引列，填充INDEX
                 for (int i = 0; i < height; i++) {
                     Row row = sheet.getRow(i);// 得到第i行数据（在表头内）
@@ -1276,45 +1277,45 @@ public class ExcelImportExportUtils {
             // 2、得到表的Body信息
             for (Field field : fields) {
                 ExcelTitleBind[] excelTitleBinds = field.getDeclaredAnnotationsByType(ExcelTitleBind.class);
-                if (excelTitleBinds != null) {
+                if (excelTitleBinds != null && excelTitleBinds.length > 0) {
                     JSONArray cellDescArr = new JSONArray();
                     for (ExcelTitleBind annotationTitle : excelTitleBinds) {
                         if (annotationTitle != null) {// 找到自定义的注解
                             JSONObject cellDesc = new JSONObject();// 单元格描述信息
                             String title = annotationTitle.title();         // 获取标题，如果标题不存在则不进行处理
-                            if (StringUtils.hasText(title)) {
-                                // 获取字典映射
-                                JSONObject mutiMap = getMapByMapEntries(field);
-                                cellDesc.put(CellEnum.MAP.name(), mutiMap.get(CellEnum.MAP.name()));// 字典映射
-                                JSONObject obj = new JSONObject();
-                                obj.put(title, mutiMap.get(TableEnum.REVERSE_MAP.name()));// 字典反转
-                                titleMap.put(field.getName(), obj);// 将反转Map存入titleMap中
+                            // 获取字典映射
+                            JSONObject mutiMap = getMapByMapEntries(field);
+                            cellDesc.put(CellEnum.MAP.name(), mutiMap.get(CellEnum.MAP.name()));// 字典映射
+                            JSONObject obj = new JSONObject();
+                            obj.put(title, mutiMap.get(TableEnum.REVERSE_MAP.name()));// 字典反转
+                            titleMap.put(field.getName(), obj);// 将反转Map存入titleMap中
 
-                                cellDesc.put(CellEnum.SPLIT_REGEX.name(), annotationTitle.splitRegex()); // 正则切割符
-                                cellDesc.put(CellEnum.REPLACE_ALL.name(), annotationTitle.replaceAll());// 是否包含替换所有,默认是替换所有
-                                cellDesc.put(CellEnum.REPLACE_ALL_TYPE.name(), annotationTitle.replaceAllType());// 是否包含替换所有,默认是替换所有
+                            cellDesc.put(CellEnum.SPLIT_REGEX.name(), annotationTitle.splitRegex()); // 正则切割符
+                            cellDesc.put(CellEnum.REPLACE_ALL.name(), annotationTitle.replaceAll());// 是否包含替换所有,默认是替换所有
+                            cellDesc.put(CellEnum.REPLACE_ALL_TYPE.name(), annotationTitle.replaceAllType());// 是否包含替换所有,默认是替换所有
 
-                                cellDesc.put(CellEnum.TITLE_NAME.name(), title);// 标题名称
-                                cellDesc.put(CellEnum.FIELD_NAME.name(), field.getName());// 字段名称
-                                cellDesc.put(CellEnum.FIELD_TYPE.name(), field.getType().getTypeName());// 字段的类型
-                                cellDesc.put(CellEnum.COL.name(), letterToNum(annotationTitle.index()));// 默认的索引位置
-                                cellDesc.put(CellEnum.WIDTH.name(), annotationTitle.width());// 单元格的宽度（宽度为2代表合并了2格单元格）
-                                cellDesc.put(CellEnum.JOIN.name(), annotationTitle.join());// 拼接的字符串 多个单元格以及合并单元格通过它来拼接
-                                cellDesc.put(CellEnum.EXCEPTION.name(), annotationTitle.exception());// 校验如果失败返回的异常消息
-                                cellDesc.put(CellEnum.SIZE.name(), annotationTitle.size());// 规模,记录规模(亿元/万元)
-                                cellDesc.put(CellEnum.PATTERN.name(), annotationTitle.importPattern());// 正则表达式
-                                cellDesc.put(CellEnum.NULLABLE.name(), annotationTitle.nullable());// 是否可空
-                                cellDesc.put(CellEnum.SPLIT.name(), annotationTitle.exportSplit());// 导出字段的拆分
-                                cellDesc.put(CellEnum.FORMAT.name(), annotationTitle.exportFormat());// 导出的模板格式
-                                cellDesc.put(CellEnum.PRIORITY.name(), annotationTitle.exportPriority());// 导出拼串的顺序
-                                cellDesc.put(CellEnum.POSITION_TITLE.name(), annotationTitle.positionTitle());// 定位
-                                cellDesc.put(CellEnum.OFFSET.name(), annotationTitle.offset());// 偏移
-                            }
+                            cellDesc.put(CellEnum.TITLE_NAME.name(), title);// 标题名称
+                            cellDesc.put(CellEnum.FIELD_NAME.name(), field.getName());// 字段名称
+                            cellDesc.put(CellEnum.FIELD_TYPE.name(), field.getType().getTypeName());// 字段的类型
+                            cellDesc.put(CellEnum.COL.name(), letterToNum(annotationTitle.index()));// 默认的索引位置
+                            cellDesc.put(CellEnum.WIDTH.name(), annotationTitle.width());// 单元格的宽度（宽度为2代表合并了2格单元格）
+                            cellDesc.put(CellEnum.JOIN.name(), annotationTitle.join());// 拼接的字符串 多个单元格以及合并单元格通过它来拼接
+                            cellDesc.put(CellEnum.EXCEPTION.name(), annotationTitle.exception());// 校验如果失败返回的异常消息
+                            cellDesc.put(CellEnum.SIZE.name(), annotationTitle.size());// 规模,记录规模(亿元/万元)
+                            cellDesc.put(CellEnum.PATTERN.name(), annotationTitle.importPattern());// 正则表达式
+                            cellDesc.put(CellEnum.NULLABLE.name(), annotationTitle.nullable());// 是否可空
+                            cellDesc.put(CellEnum.SPLIT.name(), annotationTitle.exportSplit());// 导出字段的拆分
+                            cellDesc.put(CellEnum.FORMAT.name(), annotationTitle.exportFormat());// 导出的模板格式
+                            cellDesc.put(CellEnum.PRIORITY.name(), annotationTitle.exportPriority());// 导出拼串的顺序
+                            cellDesc.put(CellEnum.POSITION_TITLE.name(), annotationTitle.positionTitle());// 定位
+                            cellDesc.put(CellEnum.OFFSET.name(), annotationTitle.offset());// 偏移
                             cellDescArr.add(cellDesc);
                         }
                     }
-                    // 以字段名作为key
-                    tableBody.put(field.getName(), cellDescArr);// 存入这个标题名单元格的的描述信息，后面还需要补全INDEX
+                    if (cellDescArr.size() > 0) {
+                        // 以字段名作为key
+                        tableBody.put(field.getName(), cellDescArr);// 存入这个标题名单元格的的描述信息，后面还需要补全INDEX
+                    }
                 }
 
             }
