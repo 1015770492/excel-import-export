@@ -1,10 +1,7 @@
 package top.yumbo.excel.annotation.core;
 
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import java.lang.annotation.*;
 
 /**
  * @author jinhua
@@ -12,6 +9,7 @@ import java.lang.annotation.Target;
  */
 @Target({ElementType.FIELD})
 @Retention(RetentionPolicy.RUNTIME)
+@Repeatable(ExcelTitleBinds.class)
 public @interface ExcelTitleBind {
     /**
      * 绑定的标题名称，
@@ -27,6 +25,20 @@ public @interface ExcelTitleBind {
     int width() default 1;
 
     /**
+     * 对于合并单元格 以及 多个单元格内容合并 内容时
+     * 为了方便再次拆出来，默认使用$$进行拼接
+     * 例如 A单元格内容为hello，B单元格内容为world
+     * 如果A，B相邻 则变成 hello$$world
+     * 如果A，B不相邻 则变成 hello$$$$world
+     * 如果A是合并单元格，B也是合并单元格并且AB不相邻,则会使用double join进行拼接
+     * 如果A的内容分别是 "I am zhanSan", "comes from china"
+     * B的内容是 "I like apple", "does not like origin"
+     * 则可能会得到这种格式："I am zhanSan$$comes from china$$$$I like apple$$does not like origin"
+     */
+    String join() default "$$";
+
+
+    /**
      * 注入的异常消息，为了校验单元格内容
      * 校验失败应该返回的消息提升
      */
@@ -38,13 +50,6 @@ public @interface ExcelTitleBind {
     String size() default "1";
 
     /**
-     * 正则截取单元格部分内容，只需要部分其它内容丢掉
-     * 一个单元格中的部分内容，例如 2020年2季度，只想单独取出年、季度这两个数字
-     */
-    String importPattern() default "";
-
-
-    /**
      * 正则截取单元格内容，保留单元格内容，后面进行替换字典
      * 服务于replaceAllOrPart，如果使用了splitRegex，则会将内容切割进行replaceAllOrPart
      * 然后将将处理后的结果返回，然后再进行importPattern
@@ -52,12 +57,30 @@ public @interface ExcelTitleBind {
     String splitRegex() default "";
 
     /**
-     * 包含字典key就完全替换为value
-     * 例如：key=江西上饶, value=jx
-     * replaceAll=true，那么就会被替换为jx。
-     * 如果设置为false，只会替换字典部分内容，也就是变成：jx上饶
+     * 正则截取单元格部分内容，只需要部分其它内容丢掉
+     * 一个单元格中的部分内容，例如 2020年2季度，只想单独取出年、季度这两个数字
      */
-    boolean replaceAll() default true;
+    String importPattern() default "";
+
+    /**
+     * 默认替换所有内容
+     * 如果replaceAll={1}则替换第一个，replaceAll=2替换第二次出现的内容以此类推
+     */
+    int[] replaceAll() default {};
+
+    /**
+     * replaceAllType 主要针对多个
+     * 例如：
+     *-- @ExcelTitleBind(replaceAll={1})
+     *-- @ExcelTitleBind(replaceAll={2})
+     *   private String code;
+     * 对 replaceAll 的作用效果
+     * 0：只影响注解信息自己
+     * 1：是先合并 再替换（多个replaceAll的注解会合成一个，然后根据合成的结果进行replace）
+     * 等同于
+     * @ExcelTitleBind(replaceAll={1, 2})
+     */
+    int replaceAllType() default 0;
 
     /**
      * 导出的字符串格式化填入，利用StringFormat.format进行字符串占位和替换
