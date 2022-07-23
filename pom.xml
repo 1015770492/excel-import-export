@@ -156,6 +156,7 @@
                 <configuration>
                     <source>1.8</source>
                     <target>1.8</target>
+                    <encoding>UTF-8</encoding><!-- utf-8进行编码代码 -->
                 </configuration>
             </plugin>
             <!--打包源码的插件-->
