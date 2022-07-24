@@ -3,6 +3,8 @@ package top.yumbo.excel.util;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import lombok.Builder;
+import lombok.Data;
 import org.apache.commons.math3.exception.OutOfRangeException;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
@@ -15,7 +17,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 import top.yumbo.excel.annotation.business.ExcelCellStyle;
-import top.yumbo.excel.annotation.business.MapEntry;
 import top.yumbo.excel.annotation.core.ExcelTableHeader;
 import top.yumbo.excel.annotation.core.ExcelTitleBind;
 import top.yumbo.excel.consts.ExcelConstants;
@@ -44,6 +45,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static top.yumbo.excel.consts.ExcelConstants.intMap;
 
@@ -76,7 +78,7 @@ public class ExcelImportExportUtils {
 
     // 单元格信息
     private enum CellEnum {
-        TITLE_NAME, FIELD_NAME, SPLIT_REGEX, REPLACE_ALL_OR_PART, FIELD_TYPE, SIZE, PATTERN, NULLABLE, WIDTH, EXCEPTION, COL, ROW, SPLIT, PRIORITY, FORMAT, MAP_ENTRIES, MAP, POSITION_TITLE, OFFSET
+        TITLE_NAME, FIELD_NAME, SPLIT_REGEX, REPLACE_ALL, REPLACE_ALL_TYPE, FIELD_TYPE, SIZE, PATTERN, NULLABLE, WIDTH, JOIN, EXCEPTION, COL, ROW, SPLIT, PRIORITY, FORMAT, MAP_ENTRIES, MAP, POSITION_TITLE, OFFSET
     }
 
     //样式的属性名
@@ -153,93 +155,63 @@ public class ExcelImportExportUtils {
                 oneRow.put(CellEnum.ROW.name(), i + 1);// 记录行号
                 // 错误消息列表
                 ArrayList<String> errMessage = new ArrayList<>();
+
+                int countNull = 0;
                 // 将Row转换为JSONObject
-                for (Object entry : fieldInfo.values()) {
-                    JSONObject fieldDesc = (JSONObject) entry;
+                int finalI = i;
+                fieldInfo.forEach((fieldName, arr) -> {
+                    JSONArray fieldDescArr = (JSONArray) arr;
+                    String join = null;
+                    int replaceType = 0;
+                    JSONObject temp = null;
+                    // 单个注解对字段的转换逻辑
+                    ArrayList<Object> tempList = new ArrayList<>();
 
-                    // 得到字段的下标
-                    Integer index = fieldDesc.getInteger(CellEnum.COL.name());
-                    if (index < 0) {
-                        continue;
-                    }
-                    Integer width = fieldDesc.getInteger(CellEnum.WIDTH.name());// 得到宽度，如果宽度不为1则需要进行合并多个单元格的内容
-
-                    Boolean containsReplaceAll = fieldDesc.getBoolean(CellEnum.REPLACE_ALL_OR_PART.name());// 替换所有还是替换部分
-                    String splitRegex = fieldDesc.getString(CellEnum.SPLIT_REGEX.name());// 进行正则切割
-
-                    String fieldName = fieldDesc.getString(CellEnum.FIELD_NAME.name());// 字段名称
-                    String title = fieldDesc.getString(CellEnum.TITLE_NAME.name());// 标题名称
-                    String fieldType = fieldDesc.getString(CellEnum.FIELD_TYPE.name());// 字段类型
-                    String exception = fieldDesc.getString(CellEnum.EXCEPTION.name());// 转换异常返回的消息
-                    String size = fieldDesc.getString(CellEnum.SIZE.name());// 得到规模
-                    boolean nullable = fieldDesc.getBoolean(CellEnum.NULLABLE.name());
-                    final JSONObject map = fieldDesc.getJSONObject(CellEnum.MAP.name());// 字典
-
-                    // 获取合并的单元格值（合并后的结果，逗号分隔）
-                    String value = getMergeString(row, index, width, fieldType);
-                    if (StringUtils.hasText(splitRegex)) {
-                        // 判断是否需要正则切割，有则将value进行切割处理
-                        String[] split = value.split(splitRegex);
-
-                        StringBuilder stringBuilder = new StringBuilder();
-                        for (int j = 0; j < split.length; j++) {
-                            stringBuilder.append(replaceAllOrReplacePart(split[j], map, containsReplaceAll));
-                            if (j + 1 < split.length) {
-                                stringBuilder.append(splitRegex);
-                            }
+                    for (Object obj : fieldDescArr) {
+                        JSONObject fieldDesc = (JSONObject) obj;
+                        replaceType = fieldDesc.getInteger(CellEnum.REPLACE_ALL_TYPE.name());
+                        if (fieldDescArr.size() > 1) {
+                            temp = fieldDesc;
                         }
-                        // 将处理完后的内容重新赋值给value
-                        value = stringBuilder.toString();
-                    } else {
-                        // 没有内容就直接替换
-                        value = replaceAllOrReplacePart(value, map, containsReplaceAll);
-                    }
-                    // 获取正则表达式，如果有正则，则进行正则截取value（相当于从单元格中取部分）
-                    String pattern = fieldDesc.getString(CellEnum.PATTERN.name());
-                    boolean hasText = StringUtils.hasText(value);
-                    Object castValue = null;
-                    // 默认字段不可以为空，如果注解过程设置为true则不抛异常
-                    if (!nullable) {
-                        // 说明字段不可以为空
-                        if (!hasText) {
-                            // 字段不能为空结果为空，这个空字段异常计数+1。除非count==length，然后重新计数，否则就是一行异常数据
-                            // 进来了，说明不为空字段在excel中为空，所以需要报异常
-                            errMessage.add("异常：第" + (i + 1) + "行的, " + numToLetter(index + 1) + " 列" + "---单元格不能为空---所在标题：" + title);
-                            continue;
-                        } else {
-                            try {
-                                // 单元格有内容,要么正常、要么异常直接抛不能返回null 直接中止
-                                value = patternConvert(pattern, value);
-                                castValue = cast(value, fieldType, "异常：第" + (i + 1) + "行的, " + numToLetter(index + 1) + " 列" + exception, size);
-                            } catch (ClassCastException e) {
-                                errMessage.add(e.getMessage() + "\ttype:" + fieldType + "\tvalue:" + value);
-                                continue;
-                            }
-                        }
-
-                    } else {
-                        // 字段可以为空 （要么正常 要么返回null不会抛异常）
                         try {
-                            // 单元格内容无关紧要。要么正常转换，要么返回null
-                            value = patternConvert(pattern, value);
-                            castValue = cast(value, fieldType, null, size);
+                            // 根据注解获取到字符串
+                            Object value = getValue(row, finalI, fieldDesc, replaceType);
+                            if (value != null) {
+                                tempList.add(value);
+                                if (join == null) {
+                                    join = fieldDesc.getString(CellEnum.JOIN.name());// 进行正则切割
+                                } else if (!fieldDesc.getString(CellEnum.JOIN.name()).equals("$$")) {
+                                    join = fieldDesc.getString(CellEnum.JOIN.name());
+                                }
+                            }
                         } catch (Exception e) {
-                            //castValue=null;// 本来初始值就是null
+                            errMessage.add(e.getMessage());
                         }
                     }
-                    oneRow.put(fieldName, castValue);// 添加数据
-                }
+                    if (tempList.size() == 1) {
+                        oneRow.put(fieldName, tempList.get(0));// 添加数据
+                    } else if (tempList.size() > 1) {
+                        // 多个注解的情况一定是字符串类型的，不然存不下2个不同注解的内容
+                        String mergedStr = listJoinString(join, tempList);
+                        if (replaceType == 1) {
+                            mergedStr = replaceAllOrReplacePart(mergedStr, temp);
+                        }
+                        oneRow.put(fieldName, mergedStr);
+                    }
+                });
 
                 // 判断这行数据是否正常
                 // 正常情况下count是等于length的，因为每个字段都需要处理
                 if (errMessage.size() == 0) {
-                    // 进行jsr303校验
-                    try {
-                        T t = JSONObject.parseObject(oneRow.toJSONString(), clazz);
-                        t = CheckLogicUtils.checkNullLogicWithJSR303(t, validator);
-                        result.add(t);// 正常情况下添加一条数据
-                    } catch (RuntimeException e) {
-                        errMessage.add("第" + oneRow.getBigInteger(CellEnum.ROW.name()) + "行数据异常：" + e.getMessage());
+                    if (countNull != oneRow.size() - 1) {
+                        // 进行jsr303校验
+                        try {
+                            T t = JSONObject.parseObject(oneRow.toJSONString(), clazz);
+                            t = CheckLogicUtils.checkNullLogicWithJSR303(t, validator);
+                            result.add(t);// 正常情况下添加一条数据
+                        } catch (RuntimeException e) {
+                            errMessage.add("第" + oneRow.getBigInteger(CellEnum.ROW.name()) + "行数据异常：" + e.getMessage());
+                        }
                     }
 
                 } else {
@@ -269,6 +241,17 @@ public class ExcelImportExportUtils {
             return result;
         }
 
+        private String listJoinString(String join, ArrayList<Object> tempList) {
+            if (tempList == null || tempList.size() == 0) {
+                return null;
+            } else if (tempList.size() == 1) {
+                return tempList.get(0).toString();
+            } else {
+                return tempList.stream().map(String::valueOf).reduce((s1, s2) -> s1 + join + s2).get();
+            }
+        }
+
+
         /**
          * 拼接异常日志
          */
@@ -279,38 +262,73 @@ public class ExcelImportExportUtils {
 
     }
 
-    /**
-     * 得到映射结果
-     * 大都情况下containsReplaceAll=true
-     * 如果containsReplaceAll=false，需要注意替换部分，必须MapEntry中本身的key不能包含，否则就会替换错误的字典项
-     */
-    private static String replaceAllOrReplacePart(String value, JSONObject map, Boolean containsReplaceAll) {
-        if (map == null) {
-            return value.trim();
-        }
-        // 转换为字典项
-        value = value.trim();// 去掉首尾多余空格等无实意符合
-        if (containsReplaceAll) {
-            // 是完全替换
 
-            for (Map.Entry<String, Object> mapEntry : map.entrySet()) {
-                if (value.equals(mapEntry.getKey())) {
-                    value = mapEntry.getValue().toString();
-                    break;
+    private static Object getValue(Row row, int i, JSONObject fieldDesc, int replaceType) throws Exception {
+        // 得到字段的下标
+        Integer index = fieldDesc.getInteger(CellEnum.COL.name());
+        String fieldType = fieldDesc.getString(CellEnum.FIELD_TYPE.name());// 字段类型
+        Integer width = fieldDesc.getInteger(CellEnum.WIDTH.name());// 得到宽度，如果宽度不为1则需要进行合并多个单元格的内容
+        String join = fieldDesc.getString(CellEnum.JOIN.name());// 进行正则切割
+        String splitRegex = fieldDesc.getString(CellEnum.SPLIT_REGEX.name());// 进行正则切割
+        String value = getValue(row, index, width, join, fieldType);
+        if (StringUtils.hasText(splitRegex)) {
+            // 判断是否需要正则切割，有则将value进行切割处理
+            String[] split = value.split(splitRegex);
+            StringBuilder stringBuilder = new StringBuilder();
+            for (int j = 0; j < split.length; j++) {
+                if (replaceType == 0) {
+                    stringBuilder.append(replaceAllOrReplacePart(split[j], fieldDesc));
+                }
+                if (j + 1 < split.length) {
+                    stringBuilder.append(splitRegex);
+                }
+
+            }
+            // 将处理完后的内容重新赋值给value
+            value = stringBuilder.toString();
+        } else {
+            // 没有内容就直接替换
+            if (replaceType == 0) {
+                value = replaceAllOrReplacePart(value, fieldDesc);
+            }
+        }
+        //String fieldName = fieldDesc.getString(CellEnum.FIELD_NAME.name());// 字段名称
+        String title = fieldDesc.getString(CellEnum.TITLE_NAME.name());// 标题名称
+        String exception = fieldDesc.getString(CellEnum.EXCEPTION.name());// 转换异常返回的消息
+        String size = fieldDesc.getString(CellEnum.SIZE.name());// 得到规模
+        boolean nullable = fieldDesc.getBoolean(CellEnum.NULLABLE.name());
+        String pattern = fieldDesc.getString(CellEnum.PATTERN.name());// 获取正则表达式，如果有正则，则进行正则截取value（相当于从单元格中取部分）
+        boolean hasText = StringUtils.hasText(value);
+
+        Object castValue = null;
+        // 默认字段不可以为空，如果注解过程设置为true则不抛异常
+        if (!nullable) {
+            // 说明字段不可以为空
+            if (!hasText) {
+                // 字段不能为空结果为空，这个空字段异常计数+1。除非count==length，然后重新计数，否则就是一行异常数据
+                // 进来了，说明不为空字段在excel中为空，所以需要报异常
+                throw new Exception("异常：第" + (i + 1) + "行的, " + numToLetter(index + 1) + " 列" + "---单元格不能为空---所在标题：" + title);
+            } else {
+                try {
+                    // 单元格有内容,要么正常、要么异常直接抛不能返回null 直接中止
+                    value = patternConvert(pattern, value);
+                    castValue = cast(value, fieldType, "异常：第" + (i + 1) + "行的, " + numToLetter(index + 1) + " 列" + exception, size);
+                } catch (ClassCastException e) {
+                    throw new Exception(e.getMessage() + "\ttype:" + fieldType + "\tvalue:" + value);
                 }
             }
-
 
         } else {
-            // 不是完全替换，只替换部分
-            for (Map.Entry<String, Object> mapEntry : map.entrySet()) {
-                if (value.contains(mapEntry.getKey())) {
-                    value = value.replaceAll(mapEntry.getKey(), mapEntry.getValue().toString());
-                    break;
-                }
+            // 字段可以为空 （要么正常 要么返回null不会抛异常）
+            try {
+                // 单元格内容无关紧要。要么正常转换，要么返回null
+                value = patternConvert(pattern, value);
+                castValue = cast(value, fieldType, null, size);
+            } catch (Exception e) {
+                //castValue=null;// 本来初始值就是null
             }
         }
-        return value;
+        return castValue;
     }
 
     /**
@@ -555,89 +573,6 @@ public class ExcelImportExportUtils {
 
     }
 
-    private static String listToString(List<String> list) {
-        if (list == null || list.size() == 0) {
-            return "[]";
-        } else if (list.size() == 1) {
-            return list.toString();
-        } else {
-            return "[" + list.stream().reduce((str1, str2) -> str1 + "\n" + str2).get() + "]";
-        }
-    }
-
-    /**
-     * 数字转Excel的字母表示
-     */
-    public static String numToLetter(int index) {
-        if (index < Integer.MAX_VALUE) {
-            if (index >= 1 && index <= 26) {
-                return intMap.get(index);
-            } else {
-                int temp = index % 26;
-                index -= temp;
-                int t = index / 26;
-                String s = numToLetter(temp);
-                if (t < 26) {
-                    return intMap.get(t) + s;
-                } else {
-                    return numToLetter(t) + s;
-                }
-            }
-        } else {
-            throw new OutOfRangeException(index, Integer.highestOneBit(index), Integer.lowestOneBit(index));
-        }
-
-    }
-
-    /**
-     * excel 字母表示转数字（26进制）
-     */
-    public static int letterToNum(String index) {
-        double num = 0.0;
-        index = index.trim();
-        try {
-            // 如果是数字直接解析返回，如果不是则经过下面转换
-            return Integer.parseInt(index);
-        } catch (Exception ignored) {
-        }
-
-        index = index.toUpperCase();
-        for (int i = 0; i < index.length(); i++) {
-            int idx = index.length() - i - 1;
-            String ch = index.substring(idx, idx + 1);
-            if (intMap.containsValue(ch)) {
-                num = num + (ch.charAt(0) - 'A' + 1) * Math.pow(26, i);
-            } else {
-                throw new RuntimeException(index);
-            }
-        }
-        return (int) num - 1;
-    }
-
-    /**
-     * 根据MapEntry注解得到字典映射，用于转换
-     */
-    private static JSONObject getMapByMapEntries(Field field) {
-        final MapEntry[] mapEntries = field.getDeclaredAnnotationsByType(MapEntry.class);
-        final JSONObject mutiMap = new JSONObject();
-        final JSONObject map = new JSONObject();
-        final JSONObject reverseMap = new JSONObject();
-
-        for (MapEntry mapEntry : mapEntries) {
-            if (mapEntry != null) {
-                map.put(mapEntry.key(), mapEntry.value());
-                reverseMap.put(mapEntry.value(), mapEntry.key());
-            }
-        }
-        mutiMap.put(CellEnum.MAP.name(), map);
-        mutiMap.put(TableEnum.REVERSE_MAP.name(), reverseMap);
-
-        if (map.size() == 0 || reverseMap.size() == 0) {
-            mutiMap.put(CellEnum.MAP.name(), null);
-            mutiMap.put(TableEnum.REVERSE_MAP.name(), null);
-        }
-        return mutiMap;
-    }
 
     /**
      * 默认不超过10w行数据使用单线程读，否则将会采用forkjoin并行读
@@ -808,20 +743,6 @@ public class ExcelImportExportUtils {
         return sheet;
     }
 
-    private static void createCell(Row row, int j) {
-        Cell cell = row.getCell(j);
-        if (cell == null) {
-            cell = row.createCell(j);
-        }
-    }
-
-    private static Row getRow(Sheet sheet, int i) {
-        Row row = sheet.getRow(i);
-        if (row == null) {
-            row = sheet.createRow(i);
-        }
-        return row;
-    }
 
     /**
      * 通过注解信息得到模板文件
@@ -889,104 +810,6 @@ public class ExcelImportExportUtils {
     public static <T> void exportExcelRowHighLight(List<T> list, OutputStream outputStream, Function<T, IndexedColors> function, int threshold) throws Exception {
         // 调用的还是高亮行导出
         listToSheetWithStyle(list, null, outputStream, function, threshold);
-    }
-
-    /**
-     * (导入)将sheet解析成List类型的数据
-     * （注意这里只是将单元格内容转换为了实体，具体字段可能还不是正确的例如 区域码应该是是具体的编码而不是XX市XX区）
-     *
-     * @param tClass 传入的泛型
-     * @param sheet  表单数据（带表头的）
-     * @return 只是将单元格内容转化为List
-     */
-    private static <T> List<T> sheetToList(Sheet sheet, Class<T> tClass, int threshold) throws RuntimeException {
-        sheetNullCheck(sheet);
-        sheet.getWorkbook().setActiveSheet(0);
-        final JSONObject importInfoByClazz = getImportInfoByClazz(sheet, tClass);
-        JSONObject tableHeaderDescInfo = getTableHeaderDescInfo(importInfoByClazz);
-        final Integer tableHeight = getTableHeight(tableHeaderDescInfo);
-        final JSONObject titleInfo = getExcelBodyDescInfo(importInfoByClazz);
-
-        final int lastRowNum = sheet.getLastRowNum();
-
-        final long start = System.currentTimeMillis();
-
-        if (threshold <= 0) {
-            threshold = 10000;
-        }
-        Boolean recordAllException = tableHeaderDescInfo.getBoolean(TableEnum.RECORD_ALL_EXCEPTIONS.name());
-        final ForkJoinImportTask<T> forkJoinAction = new ForkJoinImportTask<>(titleInfo, tClass, sheet, tableHeight, lastRowNum, recordAllException, threshold);
-        // 执行任务
-        final List<T> result = pool.invoke(forkJoinAction);
-        final long end = System.currentTimeMillis();
-
-        System.out.println("forkJoin读转换耗时" + (end - start) + "毫秒");
-        return result;
-    }
-
-    /**
-     * 空校验
-     */
-    private static void sheetNullCheck(Sheet sheet) {
-        if (sheet == null) {
-            throw new NullPointerException("sheet不能为Null");
-        }
-    }
-
-    /**
-     * 高亮行的方式导出
-     *
-     * @param list         数据集合
-     * @param inputStream  excel输入流
-     * @param outputStream 导出文件的输出流
-     * @param function     功能型函数，返回颜色
-     * @param threshold    forkJoin的条件因子，拆分任务的粒度
-     */
-    private static <T> void listToSheetWithStyle(List<T> list, InputStream inputStream, OutputStream outputStream, Function<T, IndexedColors> function, int threshold) throws Exception {
-        if (list != null && list.size() > 0 && outputStream != null) {
-            Sheet sheet = null;
-            Workbook workbook;
-            // 一、首先得到excel的模板文件
-            // 1、如果存在输入流就从输入流中获取workbook和sheet
-            if (inputStream != null) {
-                workbook = WorkbookFactory.create(inputStream);//可以读取xls格式或xlsx格式。
-                sheet = workbook.getSheetAt(0);
-            }
-            // 二、得到必要的一些信息用于后续给sheet填充数据
-            // 2、传入的sheet如果是null则会从注解中获取模板并且返回必要的信息，如果不为null则会将它存入exportInfo对象中
-            final JSONObject exportInfo = getExportInfo(list.get(0).getClass(), sheet);
-            final JSONObject titleInfo = getExcelBodyDescInfo(exportInfo);
-            // 重新从Json对象中取出workbook和sheet
-            workbook = getWorkBook(exportInfo);
-            sheet = getSheet(exportInfo);
-            // 得到表头的高度
-            final Integer height = getTableHeight(getTableHeaderDescInfo(exportInfo));
-
-            final long start = System.currentTimeMillis();
-            // 总的数据量
-            final int length = list.size();
-
-            if (threshold <= 0) {
-                // 默认任务粒度
-                threshold = 100000;
-            }
-            // forkJoin线程池进行导出导出
-            final ForkJoinExportTask<T> forkJoinAction = new ForkJoinExportTask<>(list, titleInfo, sheet, height, length + height - 1, threshold, function);
-            // 执行任务
-            pool.invoke(forkJoinAction);
-
-            final long end = System.currentTimeMillis();
-
-            System.out.println("转换耗时" + (end - start) + "毫秒");
-            workbook.write(outputStream);
-            workbook.close();
-            outputStream.close();
-        } else if (list == null || list.size() == 0) {
-            throw new NullPointerException("list不能为null 或 list数据量不能为0");
-        } else {
-            throw new NullPointerException("输出流不能为空");
-        }
-
     }
 
 
@@ -1072,6 +895,299 @@ public class ExcelImportExportUtils {
     }
 
     /**
+     * 获取完整的Excel描述信息
+     *
+     * @param tClass 模板类
+     * @param sheet  Excel
+     * @param <T>    泛型
+     */
+    private static <T> JSONObject getImportInfoByClazz(Sheet sheet, Class<T> tClass) {
+        // 获取表格部分描述信息（根据泛型得到的）
+        JSONObject partDescData = getImportDescriptionByClazz(tClass);
+        // 根据相同标题填充index
+        JSONObject allDescData = filledTitleIndexBySheet(partDescData, sheet);
+        // 填充完成后移除 col 为-1的字段，去除多余的判断，提高效率（因为这些字段是不做处理的，没必要循环判断）
+        return removeColLessZero(allDescData);
+    }
+
+    /**
+     * 传入Sheet获取一个完整的表格描述信息，将INDEX更新
+     *
+     * @param excelDescData excel的描述信息
+     * @param sheet         待解析的excel表格
+     */
+    private static JSONObject filledTitleIndexBySheet(JSONObject excelDescData, Sheet sheet) {
+        JSONObject tableHeaderDesc = getTableHeaderDescInfo(excelDescData);
+        JSONObject tableBodyDesc = getExcelBodyDescInfo(excelDescData);
+        Integer height = getTableHeight(tableHeaderDesc);// 得到表头占据了那几行
+        JSONObject titleCache = new JSONObject();
+
+        // 补充table每一项的index信息(需要通过excel来操作)
+        tableBodyDesc.forEach((fieldName, cellDescArr) -> {
+            // 得到字段的信息
+            JSONArray filedInfoArr = (JSONArray) cellDescArr;
+            filedInfoArr.forEach((cd) -> {
+                JSONObject cellDesc = (JSONObject) cd;
+                Integer col = cellDesc.getInteger(CellEnum.COL.name());
+                if (col == null) col = -1;
+                // 扫描包含表头的那几行 记录需要记录的标题所在的索引列，填充INDEX
+                for (int i = 0; i < height; i++) {
+                    Row row = sheet.getRow(i);// 得到第i行数据（在表头内）
+                    if (row == null) {
+                        continue;
+                    }
+                    // 遍历这行所有单元格，然后得到表头进行比较找到标题和注解上的titleName相同的单元格
+                    for (Cell cell : row) {
+                        // 得到单元格内容（统一为字符串类型）
+                        String cellValue = getStringCellValue(cell, String.class.getTypeName());
+                        if (col != -1) {
+                            titleCache.putIfAbsent(cellValue, col);
+                            //说明填了index值，则根据index处理;处理完这个字段了，需要处理下一个
+                            break;
+                        } else {
+                            // 如果标题相同找到了这单元格，获取单元格下标存入
+                            if (cellValue.equals(cellDesc.getString(CellEnum.TITLE_NAME.name()))) {
+                                int columnIndex = cell.getColumnIndex();// 找到了则取出索引存入jsonObject
+                                cellDesc.put(CellEnum.COL.name(), columnIndex); // 补全描述信息
+                                titleCache.putIfAbsent(cellValue, columnIndex);
+                            }
+                        }
+                    }
+                }
+            });
+
+        });
+        tableHeaderDesc.put(TableEnum.TITLE_CACHE.name(), titleCache);
+        updateTitleIndex(excelDescData);
+        return excelDescData;
+    }
+
+    /**
+     * 重复标题的处理方案：利用不重复标题的位置+当前标题与该标题的偏移
+     * 更新部分没有加title 或 index 的字段信息
+     * 但是 有些字段加了 position 和 offset信息
+     */
+    private static void updateTitleIndex(JSONObject excelDescData) {
+        JSONObject tableBodyDesc = getExcelBodyDescInfo(excelDescData);
+        JSONObject titleCacheInfo = getTitleCacheInfo(excelDescData);
+        tableBodyDesc.forEach((fieldName, cda) -> {
+            JSONArray fieldInfoArr = (JSONArray) cda;
+            fieldInfoArr.forEach(fia -> {
+                JSONObject fieldInfo = (JSONObject) fia;
+                String positionTitle = fieldInfo.getString(CellEnum.POSITION_TITLE.name());
+                if (StringUtils.hasText(positionTitle)) {
+                    if (titleCacheInfo.containsKey(positionTitle)) {
+                        // 为了不写死 index
+                        int newCol = titleCacheInfo.getInteger(positionTitle) + fieldInfo.getInteger(CellEnum.OFFSET.name());
+                        fieldInfo.put(CellEnum.COL.name(), newCol);
+                    }
+                }
+            });
+        });
+    }
+
+
+    /**
+     * 根据MapEntry注解得到字典映射，用于转换
+     */
+    private static JSONObject getMapByMapEntries(Field field) {
+        final top.yumbo.excel.annotation.business.MapEntry[] mapEntries = field.getDeclaredAnnotationsByType(top.yumbo.excel.annotation.business.MapEntry.class);
+        final JSONObject mutiMap = new JSONObject();
+        final JSONObject map = new JSONObject();
+        final JSONObject reverseMap = new JSONObject();
+
+        for (top.yumbo.excel.annotation.business.MapEntry mapEntry : mapEntries) {
+            if (mapEntry != null) {
+                map.put(mapEntry.key(), mapEntry.value());
+                reverseMap.put(mapEntry.value(), mapEntry.key());
+            }
+        }
+        mutiMap.put(CellEnum.MAP.name(), map);
+        mutiMap.put(TableEnum.REVERSE_MAP.name(), reverseMap);
+
+        if (map.size() == 0 || reverseMap.size() == 0) {
+            mutiMap.put(CellEnum.MAP.name(), null);
+            mutiMap.put(TableEnum.REVERSE_MAP.name(), null);
+        }
+        return mutiMap;
+    }
+
+
+    /**
+     * (导入)将sheet解析成List类型的数据
+     * （注意这里只是将单元格内容转换为了实体，具体字段可能还不是正确的例如 区域码应该是是具体的编码而不是XX市XX区）
+     *
+     * @param tClass 传入的泛型
+     * @param sheet  表单数据（带表头的）
+     * @return 只是将单元格内容转化为List
+     */
+    private static <T> List<T> sheetToList(Sheet sheet, Class<T> tClass, int threshold) throws RuntimeException {
+        sheetNullCheck(sheet);
+        sheet.getWorkbook().setActiveSheet(0);
+        final JSONObject importInfoByClazz = getImportInfoByClazz(sheet, tClass);
+        JSONObject tableHeaderDescInfo = getTableHeaderDescInfo(importInfoByClazz);
+        final Integer tableHeight = getTableHeight(tableHeaderDescInfo);
+        final JSONObject titleInfo = getExcelBodyDescInfo(importInfoByClazz);
+
+        final int lastRowNum = sheet.getLastRowNum();
+
+        final long start = System.currentTimeMillis();
+
+        if (threshold <= 0) {
+            threshold = 10000;
+        }
+        Boolean recordAllException = tableHeaderDescInfo.getBoolean(TableEnum.RECORD_ALL_EXCEPTIONS.name());
+        final ForkJoinImportTask<T> forkJoinAction = new ForkJoinImportTask<>(titleInfo, tClass, sheet, tableHeight, lastRowNum, recordAllException, threshold);
+        // 执行任务
+        final List<T> result = pool.invoke(forkJoinAction);
+        final long end = System.currentTimeMillis();
+
+        System.out.println("forkJoin读转换耗时" + (end - start) + "毫秒");
+        return result;
+    }
+
+    /**
+     * 数字转Excel的字母表示
+     */
+    private static String numToLetter(int index) {
+        if (index < Integer.MAX_VALUE) {
+            if (index >= 1 && index <= 26) {
+                return intMap.get(index);
+            } else {
+                int temp = index % 26;
+                index -= temp;
+                int t = index / 26;
+                String s = numToLetter(temp);
+                if (t < 26) {
+                    return intMap.get(t) + s;
+                } else {
+                    return numToLetter(t) + s;
+                }
+            }
+        } else {
+            throw new OutOfRangeException(index, Integer.highestOneBit(index), Integer.lowestOneBit(index));
+        }
+
+    }
+
+    /**
+     * excel 字母表示转数字（26进制）
+     */
+    private static int letterToNum(String index) {
+        double num = 0.0;
+        index = index.trim();
+        try {
+            // 如果是数字直接解析返回，如果不是则经过下面转换
+            return Integer.parseInt(index);
+        } catch (Exception ignored) {
+        }
+
+        index = index.toUpperCase();
+        for (int i = 0; i < index.length(); i++) {
+            int idx = index.length() - i - 1;
+            String ch = index.substring(idx, idx + 1);
+            if (intMap.containsValue(ch)) {
+                num = num + (ch.charAt(0) - 'A' + 1) * Math.pow(26, i);
+            } else {
+                throw new RuntimeException(index);
+            }
+        }
+        return (int) num - 1;
+    }
+
+
+    private static void createCell(Row row, int j) {
+        Cell cell = row.getCell(j);
+        if (cell == null) {
+            cell = row.createCell(j);
+        }
+    }
+
+    private static Row getRow(Sheet sheet, int i) {
+        Row row = sheet.getRow(i);
+        if (row == null) {
+            row = sheet.createRow(i);
+        }
+        return row;
+    }
+
+    /**
+     * 空校验
+     */
+    private static void sheetNullCheck(Sheet sheet) {
+        if (sheet == null) {
+            throw new NullPointerException("sheet不能为Null");
+        }
+    }
+
+    /**
+     * 高亮行的方式导出
+     *
+     * @param list         数据集合
+     * @param inputStream  excel输入流
+     * @param outputStream 导出文件的输出流
+     * @param function     功能型函数，返回颜色
+     * @param threshold    forkJoin的条件因子，拆分任务的粒度
+     */
+    private static <T> void listToSheetWithStyle(List<T> list, InputStream inputStream, OutputStream outputStream, Function<T, IndexedColors> function, int threshold) throws Exception {
+        if (list != null && list.size() > 0 && outputStream != null) {
+            Sheet sheet = null;
+            Workbook workbook;
+            // 一、首先得到excel的模板文件
+            // 1、如果存在输入流就从输入流中获取workbook和sheet
+            if (inputStream != null) {
+                workbook = WorkbookFactory.create(inputStream);//可以读取xls格式或xlsx格式。
+                sheet = workbook.getSheetAt(0);
+            }
+            // 二、得到必要的一些信息用于后续给sheet填充数据
+            // 2、传入的sheet如果是null则会从注解中获取模板并且返回必要的信息，如果不为null则会将它存入exportInfo对象中
+            final JSONObject exportInfo = getExportInfo(list.get(0).getClass(), sheet);
+            final JSONObject titleInfo = getExcelBodyDescInfo(exportInfo);
+            // 重新从Json对象中取出workbook和sheet
+            workbook = getWorkBook(exportInfo);
+            sheet = getSheet(exportInfo);
+            // 得到表头的高度
+            final Integer height = getTableHeight(getTableHeaderDescInfo(exportInfo));
+
+            final long start = System.currentTimeMillis();
+            // 总的数据量
+            final int length = list.size();
+
+            if (threshold <= 0) {
+                // 默认任务粒度
+                threshold = 100000;
+            }
+            // forkJoin线程池进行导出导出
+            final ForkJoinExportTask<T> forkJoinAction = new ForkJoinExportTask<>(list, titleInfo, sheet, height, length + height - 1, threshold, function);
+            // 执行任务
+            pool.invoke(forkJoinAction);
+
+            final long end = System.currentTimeMillis();
+
+            System.out.println("转换耗时" + (end - start) + "毫秒");
+            workbook.write(outputStream);
+            workbook.close();
+            outputStream.close();
+        } else if (list == null || list.size() == 0) {
+            throw new NullPointerException("list不能为null 或 list数据量不能为0");
+        } else {
+            throw new NullPointerException("输出流不能为空");
+        }
+
+    }
+
+
+    private static String listToString(List<String> list) {
+        if (list == null || list.size() == 0) {
+            return "[]";
+        } else if (list.size() == 1) {
+            return list.toString();
+        } else {
+            return "[" + list.stream().reduce((str1, str2) -> str1 + "\n" + str2).get() + "]";
+        }
+    }
+
+    /**
      * 获取表头的高度
      */
     private static Integer getTableHeight(JSONObject tableHeaderDesc) {
@@ -1134,105 +1250,6 @@ public class ExcelImportExportUtils {
         return fulledExcelDescData.getJSONObject(TableEnum.TABLE_HEADER.name());
     }
 
-    /**
-     * 传入Sheet获取一个完整的表格描述信息，将INDEX更新
-     *
-     * @param excelDescData excel的描述信息
-     * @param sheet         待解析的excel表格
-     */
-    private static JSONObject filledTitleIndexBySheet(JSONObject excelDescData, Sheet sheet) {
-        JSONObject tableHeaderDesc = getTableHeaderDescInfo(excelDescData);
-        JSONObject tableBodyDesc = getExcelBodyDescInfo(excelDescData);
-        Integer height = getTableHeight(tableHeaderDesc);// 得到表头占据了那几行
-        JSONObject titleCache = new JSONObject();
-
-        // 补充table每一项的index信息(需要通过excel来操作)
-        tableBodyDesc.forEach((fieldName, cellDesc) -> {
-            // 得到字段的信息
-            JSONObject filedInfo = (JSONObject) cellDesc;
-            Integer col = filedInfo.getInteger(CellEnum.COL.name());
-            // 扫描包含表头的那几行 记录需要记录的标题所在的索引列，填充INDEX
-            for (int i = 0; i < height; i++) {
-                Row row = sheet.getRow(i);// 得到第i行数据（在表头内）
-                if (row == null) {
-                    continue;
-                }
-                // 遍历这行所有单元格，然后得到表头进行比较找到标题和注解上的titleName相同的单元格
-                for (Cell cell : row) {
-                    // 得到单元格内容（统一为字符串类型）
-                    String cellValue = getStringCellValue(cell, String.class.getTypeName());
-                    if (col != -1) {
-                        titleCache.putIfAbsent(cellValue, col);
-                        //说明填了index值，则根据index处理;处理完这个字段了，需要处理下一个
-                        break;
-                    } else {
-                        // 如果标题相同找到了这单元格，获取单元格下标存入
-                        if (cellValue.equals(filedInfo.getString(CellEnum.TITLE_NAME.name()))) {
-                            int columnIndex = cell.getColumnIndex();// 找到了则取出索引存入jsonObject
-                            filedInfo.put(CellEnum.COL.name(), columnIndex); // 补全描述信息
-                            titleCache.putIfAbsent(cellValue, columnIndex);
-                        }
-                    }
-                }
-            }
-        });
-        tableHeaderDesc.put(TableEnum.TITLE_CACHE.name(), titleCache);
-        updateTitleIndex(excelDescData);
-        return excelDescData;
-    }
-
-    /**
-     * 重复标题的处理方案：利用不重复标题的位置+当前标题与该标题的偏移
-     * 更新部分没有加title 或 index 的字段信息
-     * 但是 有些字段加了 position 和 offset信息
-     */
-    private static void updateTitleIndex(JSONObject excelDescData) {
-        JSONObject tableBodyDesc = getExcelBodyDescInfo(excelDescData);
-        JSONObject titleCacheInfo = getTitleCacheInfo(excelDescData);
-        tableBodyDesc.forEach((fieldName, cellDesc) -> {
-            JSONObject fieldInfo = (JSONObject) cellDesc;
-            String positionTitle = fieldInfo.getString(CellEnum.POSITION_TITLE.name());
-            if (StringUtils.hasText(positionTitle)) {
-                if (titleCacheInfo.containsKey(positionTitle)) {
-                    // 为了不写死 index的逻辑，这样相对灵活些
-                    int newCol = titleCacheInfo.getInteger(positionTitle) + fieldInfo.getInteger(CellEnum.OFFSET.name());
-                    fieldInfo.put(CellEnum.COL.name(), newCol);
-                }
-            }
-        });
-    }
-
-    /**
-     * 获取完整的Excel描述信息
-     *
-     * @param tClass 模板类
-     * @param sheet  Excel
-     * @param <T>    泛型
-     */
-    private static <T> JSONObject getImportInfoByClazz(Sheet sheet, Class<T> tClass) {
-        // 获取表格部分描述信息（根据泛型得到的）
-        JSONObject partDescData = getImportDescriptionByClazz(tClass);
-        // 根据相同标题填充index
-        JSONObject allDescData = filledTitleIndexBySheet(partDescData, sheet);
-        // 填充完成后移除 col 为-1的字段，去除多余的判断，提高效率（因为这些字段是不做处理的，没必要循环判断）
-        return removeColLessZero(allDescData);
-    }
-
-    /**
-     * 移除Col下标为-1的字段描述信息。这样可以少一些循环的判断。
-     */
-    private static JSONObject removeColLessZero(JSONObject allDescData) {
-        JSONObject tableBodyDesc = getExcelBodyDescInfo(allDescData);
-        JSONObject newBodyDesc = new JSONObject();
-        // 补充table每一项的index信息
-        tableBodyDesc.forEach((fieldName, cellDesc) -> {
-            if (((JSONObject) cellDesc).getInteger(CellEnum.COL.name()) >= 0) {
-                newBodyDesc.put(fieldName, cellDesc);
-            }
-        });
-        allDescData.put(TableEnum.TABLE_BODY.name(), newBodyDesc);
-        return allDescData;
-    }
 
     /**
      * 根据注解类的注解信息获取excel表格的描述信息
@@ -1259,40 +1276,48 @@ public class ExcelImportExportUtils {
 
             // 2、得到表的Body信息
             for (Field field : fields) {
-                final ExcelTitleBind annotationTitle = field.getDeclaredAnnotation(ExcelTitleBind.class);
-                if (annotationTitle != null) {// 找到自定义的注解
-                    JSONObject cellDesc = new JSONObject();// 单元格描述信息
-                    String title = annotationTitle.title();         // 获取标题，如果标题不存在则不进行处理
-                    if (StringUtils.hasText(title)) {
-                        // 获取字典映射
-                        JSONObject mutiMap = getMapByMapEntries(field);
-                        cellDesc.put(CellEnum.MAP.name(), mutiMap.get(CellEnum.MAP.name()));// 字典映射
-                        JSONObject obj = new JSONObject();
-                        obj.put(title, mutiMap.get(TableEnum.REVERSE_MAP.name()));// 字典反转
-                        titleMap.put(field.getName(), obj);// 将反转Map存入titleMap中
+                ExcelTitleBind[] excelTitleBinds = field.getDeclaredAnnotationsByType(ExcelTitleBind.class);
+                if (excelTitleBinds != null && excelTitleBinds.length > 0) {
+                    JSONArray cellDescArr = new JSONArray();
+                    for (ExcelTitleBind annotationTitle : excelTitleBinds) {
+                        if (annotationTitle != null) {// 找到自定义的注解
+                            JSONObject cellDesc = new JSONObject();// 单元格描述信息
+                            String title = annotationTitle.title();         // 获取标题，如果标题不存在则不进行处理
+                            // 获取字典映射
+                            JSONObject mutiMap = getMapByMapEntries(field);
+                            cellDesc.put(CellEnum.MAP.name(), mutiMap.get(CellEnum.MAP.name()));// 字典映射
+                            JSONObject obj = new JSONObject();
+                            obj.put(title, mutiMap.get(TableEnum.REVERSE_MAP.name()));// 字典反转
+                            titleMap.put(field.getName(), obj);// 将反转Map存入titleMap中
 
-                        cellDesc.put(CellEnum.SPLIT_REGEX.name(), annotationTitle.splitRegex()); // 正则切割符
-                        cellDesc.put(CellEnum.REPLACE_ALL_OR_PART.name(), annotationTitle.replaceAll());// 是否包含替换所有,默认是替换所有
+                            cellDesc.put(CellEnum.SPLIT_REGEX.name(), annotationTitle.splitRegex()); // 正则切割符
+                            cellDesc.put(CellEnum.REPLACE_ALL.name(), annotationTitle.replaceAll());// 是否包含替换所有,默认是替换所有
+                            cellDesc.put(CellEnum.REPLACE_ALL_TYPE.name(), annotationTitle.replaceAllType());// 是否包含替换所有,默认是替换所有
 
-                        cellDesc.put(CellEnum.TITLE_NAME.name(), title);// 标题名称
-                        cellDesc.put(CellEnum.FIELD_NAME.name(), field.getName());// 字段名称
-                        cellDesc.put(CellEnum.FIELD_TYPE.name(), field.getType().getTypeName());// 字段的类型
-                        cellDesc.put(CellEnum.WIDTH.name(), annotationTitle.width());// 单元格的宽度（宽度为2代表合并了2格单元格）
-                        cellDesc.put(CellEnum.EXCEPTION.name(), annotationTitle.exception());// 校验如果失败返回的异常消息
-                        cellDesc.put(CellEnum.COL.name(), letterToNum(annotationTitle.index()));// 默认的索引位置
-                        cellDesc.put(CellEnum.SIZE.name(), annotationTitle.size());// 规模,记录规模(亿元/万元)
-                        cellDesc.put(CellEnum.PATTERN.name(), annotationTitle.importPattern());// 正则表达式
-                        cellDesc.put(CellEnum.NULLABLE.name(), annotationTitle.nullable());// 是否可空
-                        cellDesc.put(CellEnum.SPLIT.name(), annotationTitle.exportSplit());// 导出字段的拆分
-                        cellDesc.put(CellEnum.FORMAT.name(), annotationTitle.exportFormat());// 导出的模板格式
-                        cellDesc.put(CellEnum.PRIORITY.name(), annotationTitle.exportPriority());// 导出拼串的顺序
-                        cellDesc.put(CellEnum.POSITION_TITLE.name(), annotationTitle.positionTitle());// 定位
-                        cellDesc.put(CellEnum.OFFSET.name(), annotationTitle.offset());// 偏移
-
+                            cellDesc.put(CellEnum.TITLE_NAME.name(), title);// 标题名称
+                            cellDesc.put(CellEnum.FIELD_NAME.name(), field.getName());// 字段名称
+                            cellDesc.put(CellEnum.FIELD_TYPE.name(), field.getType().getTypeName());// 字段的类型
+                            cellDesc.put(CellEnum.COL.name(), letterToNum(annotationTitle.index()));// 默认的索引位置
+                            cellDesc.put(CellEnum.WIDTH.name(), annotationTitle.width());// 单元格的宽度（宽度为2代表合并了2格单元格）
+                            cellDesc.put(CellEnum.JOIN.name(), annotationTitle.join());// 拼接的字符串 多个单元格以及合并单元格通过它来拼接
+                            cellDesc.put(CellEnum.EXCEPTION.name(), annotationTitle.exception());// 校验如果失败返回的异常消息
+                            cellDesc.put(CellEnum.SIZE.name(), annotationTitle.size());// 规模,记录规模(亿元/万元)
+                            cellDesc.put(CellEnum.PATTERN.name(), annotationTitle.importPattern());// 正则表达式
+                            cellDesc.put(CellEnum.NULLABLE.name(), annotationTitle.nullable());// 是否可空
+                            cellDesc.put(CellEnum.SPLIT.name(), annotationTitle.exportSplit());// 导出字段的拆分
+                            cellDesc.put(CellEnum.FORMAT.name(), annotationTitle.exportFormat());// 导出的模板格式
+                            cellDesc.put(CellEnum.PRIORITY.name(), annotationTitle.exportPriority());// 导出拼串的顺序
+                            cellDesc.put(CellEnum.POSITION_TITLE.name(), annotationTitle.positionTitle());// 定位
+                            cellDesc.put(CellEnum.OFFSET.name(), annotationTitle.offset());// 偏移
+                            cellDescArr.add(cellDesc);
+                        }
+                    }
+                    if (cellDescArr.size() > 0) {
                         // 以字段名作为key
-                        tableBody.put(field.getName(), cellDesc);// 存入这个标题名单元格的的描述信息，后面还需要补全INDEX
+                        tableBody.put(field.getName(), cellDescArr);// 存入这个标题名单元格的的描述信息，后面还需要补全INDEX
                     }
                 }
+
             }
         }
         excelDescData.put(TableEnum.TABLE_HEADER.name(), tableHeader);// 将表头记录信息注入
@@ -1572,14 +1597,34 @@ public class ExcelImportExportUtils {
     }
 
     /**
+     * @param row       被取出的行
+     * @param fieldInfo index 索引位置 width 索引位置+width确定取那几列
+     * @param join      拼接的字符串
+     * @param type
+     * @return
+     */
+    private static String getMergedString(Row row, List<List<Integer>> fieldInfo, String join, String type) {
+        if (fieldInfo == null || fieldInfo.size() == 0) {
+            return "";
+        } else if (fieldInfo.size() == 1) {
+            return getValue(row, fieldInfo.get(0).get(0), fieldInfo.get(0).get(1), join, type);
+        } else {
+            return fieldInfo.stream()
+                    .map(e -> getValue(row, e.get(0), e.get(1), join, type))
+                    .reduce((s1, s2) -> s1 + join + join + s2).get();
+        }
+    }
+
+    /**
      * 获取单元格内容（逗号分隔）
      *
      * @param row   被取出的行
      * @param index 索引位置
+     * @param join  拼接的字符串
      * @param width 索引位置+width确定取那几列
      * @return 返回合并单元格的内容（单个的则传width=1即可）
      */
-    private static String getMergeString(Row row, Integer index, Integer width, String type) {
+    private static String getValue(Row row, Integer index, Integer width, String join, String type) {
         // 合并单元格的处理方式 开始
         StringBuilder cellValue = new StringBuilder();
         for (int j = 0; j < width; j++) {
@@ -1597,7 +1642,7 @@ public class ExcelImportExportUtils {
             if (j % 2 == 1) {
                 if (StringUtils.hasText(cellValue.toString())) {
                     // 前面有文本才加逗号，前面没有文本就不加
-                    cellValue.append(",");
+                    cellValue.append(join);
                 }
             }
             cellValue.append(str);
@@ -1621,6 +1666,125 @@ public class ExcelImportExportUtils {
             outputString = matcher.group(matcher.groupCount());
         }
         return outputString;
+    }
+
+    /**
+     * 移除Col下标为-1的字段描述信息。这样可以少一些循环的判断。
+     */
+    private static JSONObject removeColLessZero(JSONObject allDescData) {
+        JSONObject tableBodyDesc = getExcelBodyDescInfo(allDescData);
+        JSONObject newBodyDesc = new JSONObject();
+        // 补充table每一项的index信息
+        tableBodyDesc.forEach((fieldName, cda) -> {
+            JSONArray cellDescArr = (JSONArray) cda;
+            JSONArray newArr = new JSONArray();
+            cellDescArr.forEach(cellDesc -> {
+                if (((JSONObject) cellDesc).getInteger(CellEnum.COL.name()) >= 0) {
+                    newArr.add(cellDesc);
+                }
+            });
+            if (newArr.size() > 1) {
+                updateFieldArr(newArr);
+            }
+            newBodyDesc.put(fieldName, newArr);
+        });
+        allDescData.put(TableEnum.TABLE_BODY.name(), newBodyDesc);
+        return allDescData;
+    }
+
+    private static void updateFieldArr(JSONArray newArr) {
+        HashSet<Integer> replaceSet = new HashSet<>();
+        int replaceType = 0;
+        for (int i = 0; i < newArr.size(); i++) {
+            JSONObject fieldDesc = newArr.getJSONObject(i);
+            int[] replaceAll = fieldDesc.getObject(CellEnum.REPLACE_ALL.name(), int[].class);// 替换所有还是替换部分
+            replaceType += fieldDesc.getInteger(CellEnum.REPLACE_ALL_TYPE.name());// 替换所有还是替换部分
+            for (int i1 : replaceAll) {
+                replaceSet.add(i1);
+            }
+        }
+        replaceType = (replaceType == 0) ? 0 : 1;
+        for (int i = 0; i < newArr.size(); i++) {
+            JSONObject update = newArr.getJSONObject(i);
+            update.put(CellEnum.REPLACE_ALL_TYPE.name(), replaceType);
+            if (replaceType == 1) {
+                // 1.整体替换，合并REPLACE_ALL
+                update.put(CellEnum.REPLACE_ALL.name(),
+                        replaceSet.stream().mapToInt(Integer::valueOf).filter(x -> x > 0).toArray());
+            }//2.只影响到自己
+        }
+    }
+
+    @Data
+    @Builder
+    private static class MapEntry implements Comparable<MapEntry> {
+        private String key;
+        private String value;
+        private int id;
+        private int idx;
+        private int length;
+
+        @Override
+        public int compareTo(MapEntry o) {
+            return this.getIdx() - o.getIdx();
+        }
+    }
+
+    /**
+     * 得到映射结果
+     * 大都情况下containsReplaceAll=true
+     * 如果containsReplaceAll=false，需要注意替换部分，必须MapEntry中本身的key不能包含，否则就会替换错误的字典项
+     */
+    private static String replaceAllOrReplacePart(String value, JSONObject fieldDesc) {
+        if (fieldDesc == null) {
+            return null;
+        }
+        JSONObject map = fieldDesc.getJSONObject(CellEnum.MAP.name());
+        int[] replaceAll = fieldDesc.getObject(CellEnum.REPLACE_ALL.name(), int[].class);
+        if (map == null || !StringUtils.hasText(value)) {
+            return value.trim();
+        }
+        // 转换为字典项
+        value = value.trim();// 去掉首尾多余空格等无实意符合
+        if (replaceAll.length == 0) {
+            // 是完全替换
+
+            for (Map.Entry<String, Object> mapEntry : map.entrySet()) {
+                if (value.contains(mapEntry.getKey())) {
+                    value = value.replaceAll(mapEntry.getKey(), mapEntry.getValue().toString());
+                }
+            }
+
+        } else {
+            StringBuilder valSb = new StringBuilder(value);
+            List<MapEntry> mapEntryList = new ArrayList<>();
+            // 先找出有多少个
+            for (Map.Entry<String, Object> mapEntry : map.entrySet()) {
+                int fromIdx = 0;
+                while ((fromIdx < valSb.length()) && valSb.indexOf(mapEntry.getKey(), fromIdx) != -1) {
+                    int idx = valSb.indexOf(mapEntry.getKey(), fromIdx);
+                    int length = mapEntry.getKey().length();
+                    mapEntryList.add(MapEntry.builder().idx(idx).length(length)
+                            .key(mapEntry.getKey()).value(mapEntry.getValue().toString()).build());
+                    fromIdx = idx + length;
+                }
+            }
+            AtomicInteger id = new AtomicInteger(0);
+            // 排完序后进行编号
+            List<MapEntry> sortedMapEntry = mapEntryList.stream().sorted().peek(e -> e.setId(id.getAndIncrement())).collect(Collectors.toList());
+            // 得到配置需要替换的
+            int[] sortedReplaceAll = Arrays.stream(replaceAll).sorted().toArray();
+
+            for (int i = sortedReplaceAll.length - 1; i >= 0; i--) {
+                // 先替换最后一个,这样就不会影响前面的
+                if (sortedReplaceAll[i] <= sortedMapEntry.size()) {
+                    MapEntry mapEntry = sortedMapEntry.get(sortedReplaceAll[i] - 1);
+                    valSb.replace(mapEntry.getIdx(), mapEntry.getIdx() + mapEntry.getLength(), mapEntry.getValue());
+                }
+            }
+            value = valSb.toString();
+        }
+        return value;
     }
 
     /**
@@ -1711,7 +1875,12 @@ public class ExcelImportExportUtils {
             if (aClass == BigDecimal.class) {
                 obj = new BigDecimal(value).multiply(new BigDecimal(size)).stripTrailingZeros();// 乘以规模
             } else if (aClass == String.class) {
-                obj = value;//直接返回字符串
+                if (!"1".equals(size)) {
+                    // 如果size有值，则进行转换
+                    obj = new BigDecimal(value).multiply(new BigDecimal(size)).stripTrailingZeros().doubleValue();
+                } else {
+                    obj = value;//直接返回字符串
+                }
             } else if (aClass == Integer.class) {
                 obj = new BigDecimal(value).intValue();
             } else if (aClass == Long.class) {
@@ -1735,7 +1904,7 @@ public class ExcelImportExportUtils {
                 obj = LocalTime.parse(inputValue);
             }
         } catch (Exception e) {
-            throw new ClassCastException("类型转换异常: value = " + inputValue + ",字段type = " + aClass.getTypeName() + " 位置：" + exception);
+            throw new ClassCastException("类型转换异常: value = " + inputValue + ",字段type = " + aClass.getTypeName() + ",size=" + size + " 位置：" + exception);
         }
 
         return obj;
