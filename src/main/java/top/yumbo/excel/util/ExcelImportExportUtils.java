@@ -939,7 +939,7 @@ public class ExcelImportExportUtils {
                     // 遍历这行所有单元格，然后得到表头进行比较找到标题和注解上的titleName相同的单元格
                     for (Cell cell : row) {
                         // 得到单元格内容（统一为字符串类型）
-                        String cellValue = getStringCellValue(cell, String.class.getTypeName());
+                        String cellValue = getStringCellValue(cell, String.class.getTypeName()).replaceAll("\\s", "");
                         if (col != -1) {
                             titleCache.putIfAbsent(cellValue, col);
                             //说明填了index值，则根据index处理;处理完这个字段了，需要处理下一个
@@ -1282,7 +1282,7 @@ public class ExcelImportExportUtils {
                     for (ExcelTitleBind annotationTitle : excelTitleBinds) {
                         if (annotationTitle != null) {// 找到自定义的注解
                             JSONObject cellDesc = new JSONObject();// 单元格描述信息
-                            String title = annotationTitle.title();         // 获取标题，如果标题不存在则不进行处理
+                            String title = annotationTitle.title().replaceAll("\\s", "");
                             // 获取字典映射
                             JSONObject mutiMap = getMapByMapEntries(field);
                             cellDesc.put(CellEnum.MAP.name(), mutiMap.get(CellEnum.MAP.name()));// 字典映射
@@ -1307,7 +1307,7 @@ public class ExcelImportExportUtils {
                             cellDesc.put(CellEnum.SPLIT.name(), annotationTitle.exportSplit());// 导出字段的拆分
                             cellDesc.put(CellEnum.FORMAT.name(), annotationTitle.exportFormat());// 导出的模板格式
                             cellDesc.put(CellEnum.PRIORITY.name(), annotationTitle.exportPriority());// 导出拼串的顺序
-                            cellDesc.put(CellEnum.POSITION_TITLE.name(), annotationTitle.positionTitle());// 定位
+                            cellDesc.put(CellEnum.POSITION_TITLE.name(), annotationTitle.positionTitle().replaceAll("\\s", ""));// 定位
                             cellDesc.put(CellEnum.OFFSET.name(), annotationTitle.offset());// 偏移
                             cellDescArr.add(cellDesc);
                         }
