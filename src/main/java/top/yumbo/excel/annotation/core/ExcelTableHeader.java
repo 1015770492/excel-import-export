@@ -53,4 +53,11 @@ public @interface ExcelTableHeader {
      * 记录所有异常（默认开启）
      */
     boolean recordAllExceptions() default true;
+
+    /**
+     * 内部采用ForkJoin思想拆分excel来处理的，如果数据量很大的话会多线程跑。
+     * 如果其中一个线程如果达到了这个阈值就会中断
+     * 默认每个线程收集100条错误日志
+     */
+    int limitRowException() default 100;
 }

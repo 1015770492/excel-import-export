@@ -23,11 +23,12 @@ import top.yumbo.excel.consts.ExcelConstants;
 import top.yumbo.excel.entity.CellStyleBuilder;
 import top.yumbo.excel.entity.TitleBuilder;
 import top.yumbo.excel.entity.TitleBuilders;
+import top.yumbo.excel.util.concurrent.ForkJoinExportTask;
+import top.yumbo.excel.util.concurrent.ForkJoinImportTask;
+import top.yumbo.excel.util.constants.CellEnum;
+import top.yumbo.excel.util.constants.CellStyleEnum;
+import top.yumbo.excel.util.constants.TableEnum;
 
-import javax.validation.ConstraintViolation;
-import javax.validation.Validation;
-import javax.validation.Validator;
-import javax.validation.ValidatorFactory;
 import java.io.*;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
@@ -39,9 +40,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.RecursiveTask;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -64,206 +63,29 @@ import static top.yumbo.excel.consts.ExcelConstants.intMap;
  */
 public class ExcelImportExportUtils {
 
+    // 默认线程池
     private static ForkJoinPool pool = new ForkJoinPool(4);
 
     // 更新线程池
-    public static void setPool(ForkJoinPool pool) {
+    public static synchronized void setPool(ForkJoinPool pool) {
         ExcelImportExportUtils.pool = pool;
     }
 
-    //表头信息
-    private enum TableEnum {
-        WORK_BOOK, SHEET, TITLE_MAP, TABLE_NAME, TABLE_HEADER, TABLE_HEADER_HEIGHT, RESOURCE, TYPE, TABLE_BODY, PASSWORD, RECORD_ALL_EXCEPTIONS, REVERSE_MAP, TITLE_CACHE
-    }
-
-    // 单元格信息
-    private enum CellEnum {
-        TITLE_NAME, FIELD_NAME, SPLIT_REGEX, REPLACE_ALL, REPLACE_ALL_TYPE, FIELD_TYPE, SIZE, PATTERN, NULLABLE, WIDTH, JOIN, EXCEPTION, COL, ROW, SPLIT, PRIORITY, FORMAT, MAP_ENTRIES, MAP, POSITION_TITLE, OFFSET
-    }
-
-    //样式的属性名
-    private enum CellStyleEnum {
-        FONT_NAME, FONT_SIZE, BG_COLOR, TEXT_ALIGN, LOCKED, HIDDEN, BOLD,
-        VERTICAL_ALIGN, WRAP_TEXT, STYLES,
-        FORE_COLOR, ROTATION, FILL_PATTERN, AUTO_SHRINK, TOP, BOTTOM, LEFT, RIGHT
-    }
 
 
     /**
      * 并发导入任务
      */
-    private static class ForkJoinImportTask<T> extends RecursiveTask<List<T>> {
-        private final int start;
-        private final int end;
-        private final boolean recordAllException;
-        private final Sheet sheet;
-        private final int threshold;// 默认1万以后需要拆分
-        private final JSONObject fieldInfo;// tableBody
-        private final Class<T> clazz; // 泛型
-        private static ValidatorFactory vf = Validation.buildDefaultValidatorFactory();
-        private static Validator validator = vf.getValidator();
 
-
-        ForkJoinImportTask(JSONObject fieldInfo, Class<T> clazz, Sheet sheet, int start, int end, boolean recordAllException, int threshold) {
-            this.fieldInfo = fieldInfo;
-            this.clazz = clazz;
-            this.sheet = sheet;
-            this.start = start;
-            this.end = end;
-            this.threshold = threshold;
-            this.recordAllException = recordAllException;
-        }
-
-        @Override
-        protected List<T> compute() {
-            int nums = end - start;// 计算有多少行数据
-
-            if (nums <= threshold) {
-                // 解析数据并且返回List
-                return praseRowsToList();
-            } else {
-                int middle = (start + end) / 2;
-
-                // 处理start到middle行号内的数据
-                ForkJoinImportTask<T> left = new ForkJoinImportTask<>(fieldInfo, clazz, sheet, start, middle, recordAllException, threshold);
-                left.fork();
-                // 处理middle+1到end行号内的数据
-                ForkJoinImportTask<T> right = new ForkJoinImportTask<>(fieldInfo, clazz, sheet, middle + 1, end, recordAllException, threshold);
-                right.fork();
-                final List<T> leftList = left.join();
-                final List<T> rightList = right.join();
-                leftList.addAll(rightList);
-                return leftList;
-            }
-        }
-
-        /**
-         * 解析从start到end行的数据转换为List
-         */
-        private List<T> praseRowsToList() throws RuntimeException {
-            // 从表头描述信息得到表头的高
-            final ArrayList<T> result = new ArrayList<>();
-
-            ArrayList<List<String>> rowOfErrMessage = new ArrayList<>();
-            // 按行扫描excel表
-            for (int i = start; i <= end; i++) {
-                final Row row = sheet.getRow(i);
-                if (row == null) {
-                    continue;
-                }
-                JSONObject oneRow = new JSONObject();// 一行数据
-                oneRow.put(CellEnum.ROW.name(), i + 1);// 记录行号
-                // 错误消息列表
-                ArrayList<String> errMessage = new ArrayList<>();
-
-                int countNull = 0;
-                // 将Row转换为JSONObject
-                int finalI = i;
-                fieldInfo.forEach((fieldName, arr) -> {
-                    JSONArray fieldDescArr = (JSONArray) arr;
-                    String join = null;
-                    int replaceType = 0;
-                    JSONObject temp = null;
-                    // 单个注解对字段的转换逻辑
-                    ArrayList<Object> tempList = new ArrayList<>();
-
-                    for (Object obj : fieldDescArr) {
-                        JSONObject fieldDesc = (JSONObject) obj;
-                        replaceType = fieldDesc.getInteger(CellEnum.REPLACE_ALL_TYPE.name());
-                        if (fieldDescArr.size() > 1) {
-                            temp = fieldDesc;
-                        }
-                        try {
-                            // 根据注解获取到字符串
-                            Object value = getValue(row, finalI, fieldDesc, replaceType);
-                            if (value != null) {
-                                tempList.add(value);
-                                if (join == null) {
-                                    join = fieldDesc.getString(CellEnum.JOIN.name());// 进行正则切割
-                                } else if (!fieldDesc.getString(CellEnum.JOIN.name()).equals("$$")) {
-                                    join = fieldDesc.getString(CellEnum.JOIN.name());
-                                }
-                            }
-                        } catch (Exception e) {
-                            errMessage.add(e.getMessage());
-                        }
-                    }
-                    if (tempList.size() == 1) {
-                        oneRow.put(fieldName, tempList.get(0));// 添加数据
-                    } else if (tempList.size() > 1) {
-                        // 多个注解的情况一定是字符串类型的，不然存不下2个不同注解的内容
-                        String mergedStr = listJoinString(join, tempList);
-                        if (replaceType == 1) {
-                            mergedStr = replaceAllOrReplacePart(mergedStr, temp);
-                        }
-                        oneRow.put(fieldName, mergedStr);
-                    }
-                });
-
-                // 判断这行数据是否正常
-                // 正常情况下count是等于length的，因为每个字段都需要处理
-                if (errMessage.size() == 0) {
-                    if (countNull != oneRow.size() - 1) {
-                        // 进行jsr303校验
-                        try {
-                            T t = JSONObject.parseObject(oneRow.toJSONString(), clazz);
-                            t = CheckLogicUtils.checkNullLogicWithJSR303(t, validator);
-                            result.add(t);// 正常情况下添加一条数据
-                        } catch (RuntimeException e) {
-                            errMessage.add("第" + oneRow.getBigInteger(CellEnum.ROW.name()) + "行数据异常：" + e.getMessage());
-                        }
-                    }
-
-                } else {
-                    // 该行存在error
-                    rowOfErrMessage.add(errMessage);
-                }
-                // 如果没有开启记录所有日志，则该task不会跑完，当达到了100条日志的时候就会抛异常
-                if (!recordAllException) {
-                    if (rowOfErrMessage.size() > 100) {
-                        // 每个线程默认达到100Exception时就结束
-                        throw new RuntimeException(Thread.currentThread().getName() + "-->超过100条异常记录\n" + printRowOfException(rowOfErrMessage));
-                    }
-                }
-                // 空行继续扫描,或者正常
-            }
-            if (!recordAllException) {
-                if (rowOfErrMessage.size() == 1) {
-                    // 需要终止程序，出现了异常
-                    throw new RuntimeException("\n" + listToString(rowOfErrMessage.get(0)));
-                } else if (rowOfErrMessage.size() >= 2) {
-                    // 需要终止程序，出现了异常
-                    throw new RuntimeException("\n\nExcel中有" + rowOfErrMessage.size() + "行数据有Error:\n\n" + printRowOfException(rowOfErrMessage));
-                }
-            }
-
-
-            return result;
-        }
-
-        private String listJoinString(String join, ArrayList<Object> tempList) {
-            if (tempList == null || tempList.size() == 0) {
-                return null;
-            } else if (tempList.size() == 1) {
-                return tempList.get(0).toString();
-            } else {
-                return tempList.stream().map(String::valueOf).reduce((s1, s2) -> s1 + join + s2).get();
-            }
-        }
-
-
-        /**
-         * 拼接异常日志
-         */
-        private String printRowOfException(ArrayList<List<String>> rowOfErrMessage) {
-            return rowOfErrMessage.stream().map(ExcelImportExportUtils::listToString).reduce((list1, list2) -> list1 + "\n" + list2).get();
-        }
-
-
-    }
-
-
-    private static Object getValue(Row row, int i, JSONObject fieldDesc, int replaceType) throws Exception {
+    /**
+     * 从excel中获取内容并将其转换为java类型
+     *
+     * @param row         excel的行
+     * @param fieldDesc   字段信息（单个注解的信息，有COL、FIELD_TYPE、WIDTH等信息）
+     * @param replaceType 替换的规则
+     * @return 根据注解信息从excel解析并转换后的值
+     */
+    public static Object getValue(Row row, JSONObject fieldDesc, int replaceType) throws Exception {
         // 得到字段的下标
         Integer index = fieldDesc.getInteger(CellEnum.COL.name());
         String fieldType = fieldDesc.getString(CellEnum.FIELD_TYPE.name());// 字段类型
@@ -307,12 +129,12 @@ public class ExcelImportExportUtils {
             if (!hasText) {
                 // 字段不能为空结果为空，这个空字段异常计数+1。除非count==length，然后重新计数，否则就是一行异常数据
                 // 进来了，说明不为空字段在excel中为空，所以需要报异常
-                throw new Exception("异常：第" + (i + 1) + "行的, " + numToLetter(index + 1) + " 列" + "---单元格不能为空---所在标题：" + title);
+                throw new Exception("异常：第" + (row.getRowNum() + 1) + "行的, " + numToLetter(index + 1) + " 列" + "---单元格不能为空---所在标题：" + title);
             } else {
                 try {
                     // 单元格有内容,要么正常、要么异常直接抛不能返回null 直接中止
                     value = patternConvert(pattern, value);
-                    castValue = cast(value, fieldType, "异常：第" + (i + 1) + "行的, " + numToLetter(index + 1) + " 列" + exception, size);
+                    castValue = cast(value, fieldType, "异常：第" + (row.getRowNum() + 1) + "行的, " + numToLetter(index + 1) + " 列" + exception, size);
                 } catch (ClassCastException e) {
                     throw new Exception(e.getMessage() + "\ttype:" + fieldType + "\tvalue:" + value);
                 }
@@ -334,245 +156,6 @@ public class ExcelImportExportUtils {
     /**
      * 并发导出任务
      */
-    private static class ForkJoinExportTask<T> extends RecursiveTask<Integer> {
-
-        private final int start;
-        private final int end;
-        private final List<T> subList;
-        private final Sheet sheet;
-        private final int threshold;// 默认1千以后需要拆分
-        private final Function<T, IndexedColors> function;// 功能性函数
-        private final JSONObject titleInfo;// 单元格标题列描述信息
-        private static ValidatorFactory vf = Validation.buildDefaultValidatorFactory();
-        private static Validator validator = vf.getValidator();
-        final static ThreadLocal<HashMap<String, CellStyle>> cellStyleThreadLocal = new ThreadLocal<>();
-
-        /**
-         * @param subList   数据集合
-         * @param titleInfo 单元格标题描述信息
-         * @param sheet     excel表
-         * @param start     起始行号
-         * @param end       结束行号
-         * @param threshold 条件因子
-         * @param function  功能型函数
-         */
-        private ForkJoinExportTask(List<T> subList, JSONObject titleInfo, Sheet sheet, int start, int end, int threshold, Function<T, IndexedColors> function) {
-            this.subList = subList;
-            this.titleInfo = titleInfo;
-            this.start = start;
-            this.end = end;
-            this.threshold = threshold;
-            this.sheet = sheet;
-            this.function = function;
-        }
-
-
-        @Override
-        protected Integer compute() throws RuntimeException {
-            int length = end - start;
-
-            if (length <= threshold) {
-                return this.subListFilledSheet();
-            } else {
-                int middle = (start + end) / 2;
-                int subIndex = middle - start + 1;// 要包含middle这个位子则需要加1进行截取
-
-                List<T> subList1 = subList.subList(0, subIndex);
-                List<T> subList2 = subList.subList(subIndex, subList.size());
-                ForkJoinExportTask<T> left = new ForkJoinExportTask<>(subList1, titleInfo, sheet, start, start + subList1.size() - 1, threshold, function);
-                left.fork();
-                ForkJoinExportTask<T> right = new ForkJoinExportTask<>(subList2, titleInfo, sheet, start + subList1.size(), end, threshold, function);
-                right.fork();
-                return left.join() + right.join();
-            }
-        }
-
-        /**
-         * 将集合数据填入表格
-         */
-        private int subListFilledSheet() throws RuntimeException {
-            final int length = subList.size();
-
-            short index = IndexedColors.WHITE.getIndex();// 默认白色背景
-            // 每一个子列表同一个cellStyle
-            CellStyle cellStyle = getCellStyle(index);
-
-            for (int i = 0; i < length; i++) {
-                int rowNum = start + i;
-                Row row = sheet.getRow(rowNum);
-                synchronized (sheet) {
-                    if (sheet.getRow(rowNum) == null) {
-                        // 创建一行,创建过程涉及到map的线程安全,故需要对sheet加锁
-                        row = sheet.createRow(rowNum);
-                    }
-                }
-
-                AtomicReference<RuntimeException> exception = new AtomicReference<>();
-                // 遍历表身体信息
-                T t = subList.get(i);
-                // 进行jsr303校验数据
-                Set<ConstraintViolation<T>> set = validator.validate(t);
-                for (ConstraintViolation<T> constraintViolation : set) {
-                    throw new RuntimeException("第" + rowNum + "个数据出现异常：" + constraintViolation.getMessage() + ",原数据：" + t);
-                }
-                if (function != null) {
-                    index = function.apply(t).getIndex();
-                    cellStyle = getCellStyle(index);
-                }
-
-                final JSONObject json = JSONObject.parseObject(JSONObject.toJSONString(t));
-                // 可以并行处理单元格
-                jsonToOneRow(row, json, exception, cellStyle);
-
-                if (exception.get() != null) {
-                    throw exception.get();
-                }
-            }
-            //final Thread thread = Thread.currentThread();
-            cellStyleThreadLocal.remove();
-            return length;
-        }
-
-        /**
-         * 获取一个样式，如果没有就创建一个并且进行缓存
-         */
-        private CellStyle getCellStyle(short index) {
-            final HashMap<String, CellStyle> cellStyleMap = cellStyleThreadLocal.get();
-            if (cellStyleMap != null) {
-                final CellStyle cellStyle2 = cellStyleMap.get(String.valueOf(index));
-                if (cellStyle2 != null) {
-                    return cellStyle2;// 存在样式直接返回
-                }
-            } else {
-                cellStyleThreadLocal.set(new HashMap<>());
-            }
-            final Workbook workbook = sheet.getWorkbook();
-            final HashMap<String, CellStyle> styleMap = cellStyleThreadLocal.get();
-            synchronized (workbook) {
-                CellStyle cellStyle = workbook.createCellStyle();
-                Font font = workbook.createFont();
-                font.setFontName("微软雅黑");
-                font.setFontHeightInPoints((short) 11);//设置字体大小
-                cellStyle.setFont(font);
-                cellStyle.setBorderLeft(BorderStyle.THIN);
-                cellStyle.setBorderRight(BorderStyle.THIN);
-                cellStyle.setBorderTop(BorderStyle.THIN);
-                cellStyle.setBorderBottom(BorderStyle.THIN);
-                cellStyle.setAlignment(HorizontalAlignment.CENTER);
-                cellStyle.setFillForegroundColor(index);// 设置颜色
-                cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-                styleMap.put(String.valueOf(index), cellStyle);
-            }
-            cellStyleThreadLocal.set(styleMap);
-            return styleMap.get(String.valueOf(index));
-
-        }
-
-        /**
-         * 将数据填入一行
-         */
-        private void jsonToOneRow(Row row, JSONObject json, AtomicReference<RuntimeException> exception, CellStyle cellStyle) {
-            for (Map.Entry<String, Object> entry : titleInfo.entrySet()) {
-                final String titleIdx = entry.getKey();
-                final Object v = entry.getValue();
-                // 标题 索引
-                final int titleIndex = Integer.parseInt(titleIdx);
-                if (titleIndex < 0) {
-                    throw new RuntimeException("导出异常，请校验注解title值和模板标题是否一致，得到的标题索引为" + titleIdx + ".标题的信息是：" + v);
-                }
-                // 给这个 index单元格 填入 value
-                Cell cell = row.getCell(titleIndex);// 得到单元格
-                if (cell == null) {
-                    cell = row.createCell(titleIndex);
-                }
-                cell.setCellStyle(cellStyle);
-                if (v instanceof JSONArray) {
-                    // 多个字段合并成一个单元格内容
-                    JSONArray array = (JSONArray) v;
-                    String[] linkedFormatString = new String[array.size()];
-                    final AtomicInteger atomicInteger = new AtomicInteger(0);
-                    final Object[] objects = array.toArray();
-                    for (Object obj : objects) {
-                        // 处理每一个字段
-                        JSONObject fieldDescData = (JSONObject) obj;
-                        // 得到转换后的内容
-                        final String resultValue = getValueByFieldInfo(json, fieldDescData);
-                        linkedFormatString[atomicInteger.getAndIncrement()] = resultValue;// 存入该位置
-                    }
-
-                    final StringBuilder stringBuilder = new StringBuilder();
-                    for (String s : linkedFormatString) {
-                        stringBuilder.append(s);
-                    }
-                    String value = stringBuilder.toString();// 得到了合并后的内容
-                    // 因为合并了多个字段所以肯定是字符串类型的
-                    cell.setCellValue(value);
-
-                } else {
-                    // 一个字段可能要拆成多个单元格
-                    JSONObject jsonObject = (JSONObject) v;
-                    final String format = jsonObject.getString(CellEnum.FORMAT.name());
-                    final Integer priority = jsonObject.getInteger(CellEnum.PRIORITY.name());
-                    final String fieldName = jsonObject.getString(CellEnum.FIELD_NAME.name());
-                    final String fieldType = jsonObject.getString(CellEnum.FIELD_TYPE.name());
-                    final String size = jsonObject.getString(CellEnum.SIZE.name());
-                    final String split = jsonObject.getString(CellEnum.SPLIT.name());
-                    Object fieldValue = json.get(fieldName);// 得到这个字段值
-                    final Integer width = jsonObject.getInteger(CellEnum.WIDTH.name());
-
-                    if (width > 1) {
-                        // 一个字段需要拆分成多个单元格
-                        if (StringUtils.hasText(split)) {
-                            // 有拆分词,是字符串
-                            final String[] splitArray = ((String) fieldValue).split(split);// 先拆分字段
-                            if (StringUtils.hasText(format)) {
-                                // 有格式化模板
-                                final String[] formatStr = format.split(split);// 拆分后的格式化内容
-                                for (int j = 0; j < width; j++) {
-                                    cell = row.getCell(titleIndex + j);
-                                    if (cell == null) {
-                                        cell = row.createCell(titleIndex + j);// 得到单元格
-                                    }
-                                    String formattedStr = formatStr[j].replace("$" + j, splitArray[j]);// 替换字符串
-                                    cell.setCellStyle(cellStyle);
-                                    cell.setCellValue(formattedStr);// 将格式化后的字符串填入
-                                }
-                            } else {
-                                // 没有格式化模板直接填入内容
-                                for (int j = 0; j < width; j++) {
-                                    cell = row.getCell(titleIndex + j);
-                                    if (cell == null) {
-                                        cell = row.createCell(titleIndex + j);// 得到单元格
-                                    }
-                                    String formattedStr = format.replace("$" + j, splitArray[j]);// 替换字符串
-                                    cell.setCellStyle(cellStyle);
-                                    cell.setCellValue(formattedStr);// 将格式化后的字符串填入
-                                }
-                            }
-
-                        } else {
-                            // 没有拆分词，本身需要拆分，抛异常
-                            exception.set(new RuntimeException(fieldName + "字段的注解上 缺少exportSplit拆分词"));
-                        }
-                    } else {
-
-                        // 一个字段不需要拆成多个单元格
-                        if (StringUtils.hasText(format)) {
-                            // 内容存在格式化先进行格式化，然后填入值
-                            String replacedStr = format.replace("$" + priority, (String) fieldValue);// 替换字符串
-                            cell.setCellValue(replacedStr);// 设置单元格内容
-                        } else {
-                            // 内容不需要格式化则直接填入(转换一下单位，如果没有就原样返回)
-                            setCellValue(cell, fieldValue, fieldType, size);
-                        }
-                    }
-                }
-            }
-
-        }
-
-    }
-
 
     /**
      * 默认不超过10w行数据使用单线程读，否则将会采用forkjoin并行读
@@ -1037,7 +620,8 @@ public class ExcelImportExportUtils {
             threshold = 10000;
         }
         Boolean recordAllException = tableHeaderDescInfo.getBoolean(TableEnum.RECORD_ALL_EXCEPTIONS.name());
-        final ForkJoinImportTask<T> forkJoinAction = new ForkJoinImportTask<>(titleInfo, tClass, sheet, tableHeight, lastRowNum, recordAllException, threshold);
+        int limitRowException = tableHeaderDescInfo.getIntValue(TableEnum.LIMIT_ROW_EXCEPTION.name());
+        final ForkJoinImportTask<T> forkJoinAction = new ForkJoinImportTask<>(titleInfo, tClass, sheet, tableHeight, lastRowNum, recordAllException, limitRowException, threshold);
         // 执行任务
         final List<T> result = pool.invoke(forkJoinAction);
         final long end = System.currentTimeMillis();
@@ -1177,7 +761,7 @@ public class ExcelImportExportUtils {
     }
 
 
-    private static String listToString(List<String> list) {
+    public static String listToString(List<String> list) {
         if (list == null || list.size() == 0) {
             return "[]";
         } else if (list.size() == 1) {
@@ -1217,7 +801,7 @@ public class ExcelImportExportUtils {
      * @param fieldDescData 字段规则描述数据
      * @return 处理后的字符串
      */
-    private static String getValueByFieldInfo(JSONObject entity, JSONObject fieldDescData) {
+    public static String getValueByFieldInfo(JSONObject entity, JSONObject fieldDescData) {
         final String format = fieldDescData.getString(CellEnum.FORMAT.name());
         final Integer priority = fieldDescData.getInteger(CellEnum.PRIORITY.name());
         final String fieldName = fieldDescData.getString(CellEnum.FIELD_NAME.name());
@@ -1273,6 +857,7 @@ public class ExcelImportExportUtils {
             tableHeader.put(TableEnum.TABLE_NAME.name(), excelTableHeaderAnnotation.sheetName());// 表的名称
             tableHeader.put(TableEnum.TABLE_HEADER_HEIGHT.name(), excelTableHeaderAnnotation.height());// 表头的高度
             tableHeader.put(TableEnum.RECORD_ALL_EXCEPTIONS.name(), excelTableHeaderAnnotation.recordAllExceptions());// 是否开启记录所有异常
+            tableHeader.put(TableEnum.LIMIT_ROW_EXCEPTION.name(), excelTableHeaderAnnotation.limitRowException());// 多少行异常后才终止程序
 
             // 2、得到表的Body信息
             for (Field field : fields) {
@@ -1735,7 +1320,7 @@ public class ExcelImportExportUtils {
      * 大都情况下containsReplaceAll=true
      * 如果containsReplaceAll=false，需要注意替换部分，必须MapEntry中本身的key不能包含，否则就会替换错误的字典项
      */
-    private static String replaceAllOrReplacePart(String value, JSONObject fieldDesc) {
+    public static String replaceAllOrReplacePart(String value, JSONObject fieldDesc) {
         if (fieldDesc == null) {
             return null;
         }
@@ -1816,7 +1401,7 @@ public class ExcelImportExportUtils {
      * @param type       应该的类型
      * @param size       规模
      */
-    private static void setCellValue(Cell cell, Object inputValue, String type, String size) {
+    public static void setCellValue(Cell cell, Object inputValue, String type, String size) {
 
         final Class<?> fieldType = clazzMap.get(type);
         if (fieldType == BigDecimal.class || fieldType == Double.class || fieldType == Float.class
