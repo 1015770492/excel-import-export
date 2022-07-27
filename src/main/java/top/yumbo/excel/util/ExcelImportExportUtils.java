@@ -24,6 +24,7 @@ import top.yumbo.excel.entity.CellStyleBuilder;
 import top.yumbo.excel.entity.TitleBuilder;
 import top.yumbo.excel.entity.TitleBuilders;
 import top.yumbo.excel.util.concurrent.ForkJoinExportTask;
+import top.yumbo.excel.util.concurrent.ForkJoinImportAction;
 import top.yumbo.excel.util.concurrent.ForkJoinImportTask;
 import top.yumbo.excel.util.constants.CellEnum;
 import top.yumbo.excel.util.constants.CellStyleEnum;
@@ -41,6 +42,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -70,7 +72,6 @@ public class ExcelImportExportUtils {
     public static synchronized void setPool(ForkJoinPool pool) {
         ExcelImportExportUtils.pool = pool;
     }
-
 
 
     /**
@@ -175,6 +176,23 @@ public class ExcelImportExportUtils {
     }
 
     /**
+     * 默认不超过10w行数据使用单线程读，否则将会采用forkjoin并行读
+     * 用于读取多个sheet
+     * 读取sheet中的数据为List，默认粒度10_0000
+     */
+    public static <T> void importExcelConsumer(Sheet sheet, Class<T> tClass, Consumer<List<T>> consumer) throws Exception {
+        sheetToListConsumer(sheet, tClass, consumer, 100000);
+    }
+
+    /**
+     * 用于读取多个sheet
+     * 读取sheet中的数据为List,带任务粒控制因子threshold
+     */
+    public static <T> void importExcelConsumer(Sheet sheet, Class<T> tClass, Consumer<List<T>> consumer, int threshold) throws RuntimeException {
+        sheetToListConsumer(sheet, tClass, consumer, threshold);
+    }
+
+    /**
      * 超过10w则启用并发导入
      *
      * @param inputStream excel的输入流
@@ -185,6 +203,16 @@ public class ExcelImportExportUtils {
     }
 
     /**
+     * 超过1w则启用并发消费
+     *
+     * @param inputStream excel的输入流
+     * @param tClass      泛型
+     */
+    public static <T> void importExcelConsumer(InputStream inputStream, Class<T> tClass, Consumer<List<T>> consumer) throws Exception {
+        importExcelConsumer(inputStream, tClass, consumer, 10000);
+    }
+
+    /**
      * 并发导入
      *
      * @param inputStream 传入的excel输入流
@@ -192,17 +220,11 @@ public class ExcelImportExportUtils {
      * @param threshold   并发任务的颗粒度
      */
     public static <T> List<T> importExcel(InputStream inputStream, Class<T> tClass, int threshold) throws Exception {
-        ExcelTableHeader tableHeader = tClass.getAnnotation(ExcelTableHeader.class);
-        if (tableHeader != null) {
-            String tableName = tableHeader.sheetName();
-            if (!tableName.trim().equals(ExcelConstants.SHEET1)) {
-                //如果不是默认的，则根据名称找到sheet，进行操作
-                Sheet sheet = getSheetByInputStream(inputStream, tableName);
-                return importExcel(sheet, tClass, threshold);
-            }
-        }
-        // 如果注解中没有信息，默认从第一个sheet读取
         return importExcel(inputStream, 0, tClass, threshold);
+    }
+
+    public static <T> void importExcelConsumer(InputStream inputStream, Class<T> tClass, Consumer<List<T>> consumer, int threshold) throws Exception {
+        importExcelConsumer(inputStream, 0, tClass, consumer, threshold);
     }
 
     /**
@@ -214,7 +236,32 @@ public class ExcelImportExportUtils {
      * @param threshold   并发控制因子
      */
     public static <T> List<T> importExcel(InputStream inputStream, int sheetIdx, Class<T> tClass, int threshold) throws Exception {
+        ExcelTableHeader tableHeader = tClass.getAnnotation(ExcelTableHeader.class);
+        if (tableHeader != null) {
+            String tableName = tableHeader.sheetName();
+            if (!tableName.trim().equals(ExcelConstants.SHEET1)) {
+                //如果不是默认的，则根据名称找到sheet，进行操作
+                Sheet sheet = getSheetByInputStream(inputStream, tableName);
+                return importExcel(sheet, tClass, threshold);
+            }
+        }
+        // 如果注解中没有信息，默认从第一个sheet读取
         return importExcel(getSheetByInputStream(inputStream, sheetIdx), tClass, threshold);
+    }
+
+    public static <T> void importExcelConsumer(InputStream inputStream, int sheetIdx, Class<T> tClass, Consumer<List<T>> consumer, int threshold) throws Exception {
+        ExcelTableHeader tableHeader = tClass.getAnnotation(ExcelTableHeader.class);
+        if (tableHeader != null) {
+            String tableName = tableHeader.sheetName();
+            if (!tableName.trim().equals(ExcelConstants.SHEET1)) {
+                //如果不是默认的，则根据名称找到sheet，进行操作
+                Sheet sheet = getSheetByInputStream(inputStream, tableName);
+                importExcelConsumer(sheet, tClass, consumer, threshold);
+                return;// 想要结束
+            }
+        }
+        // 如果注解中没有信息，默认从第一个sheet读取
+        importExcelConsumer(getSheetByInputStream(inputStream, sheetIdx), tClass, consumer, threshold);
     }
 
     /**
@@ -439,11 +486,11 @@ public class ExcelImportExportUtils {
      *
      * @param inputStream excel的输入流
      */
-    public static Workbook getWorkBookByInputStream(InputStream inputStream) throws Exception {
+    public static synchronized Workbook getWorkBookByInputStream(InputStream inputStream) throws Exception {
         if (inputStream == null) {
             throw new NullPointerException("输入流不能为空");
         }
-        return WorkbookFactory.create(inputStream);//可以读取xls格式或xlsx格式。
+        return WorkbookFactory.create(inputStream);
     }
 
 
@@ -628,6 +675,35 @@ public class ExcelImportExportUtils {
 
         System.out.println("forkJoin读转换耗时" + (end - start) + "毫秒");
         return result;
+    }
+
+    /**
+     * 转换后就将其消费掉，消费的逻辑由外部传入
+     */
+    private static <T> void sheetToListConsumer(Sheet sheet, Class<T> tClass, Consumer<List<T>> consumer, int threshold) throws RuntimeException {
+        sheetNullCheck(sheet);
+        sheet.getWorkbook().setActiveSheet(0);
+        final JSONObject importInfoByClazz = getImportInfoByClazz(sheet, tClass);
+        JSONObject tableHeaderDescInfo = getTableHeaderDescInfo(importInfoByClazz);
+        final Integer tableHeight = getTableHeight(tableHeaderDescInfo);
+        final JSONObject titleInfo = getExcelBodyDescInfo(importInfoByClazz);
+
+        final int lastRowNum = sheet.getLastRowNum();
+
+        final long start = System.currentTimeMillis();
+
+        if (threshold <= 0) {
+            threshold = 10000;
+        }
+        Boolean recordAllException = tableHeaderDescInfo.getBoolean(TableEnum.RECORD_ALL_EXCEPTIONS.name());
+        int limitRowException = tableHeaderDescInfo.getIntValue(TableEnum.LIMIT_ROW_EXCEPTION.name());
+        final ForkJoinImportAction<T> forkJoinAction = new ForkJoinImportAction<>(titleInfo, tClass, consumer, sheet, tableHeight, lastRowNum, recordAllException, limitRowException, threshold);
+        // 执行任务
+        pool.invoke(forkJoinAction);
+        final long end = System.currentTimeMillis();
+
+        System.out.println("forkJoin读转换耗时" + (end - start) + "毫秒");
+
     }
 
     /**

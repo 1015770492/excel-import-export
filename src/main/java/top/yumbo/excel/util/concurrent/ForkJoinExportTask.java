@@ -21,7 +21,10 @@ import java.util.function.Function;
 
 import static top.yumbo.excel.util.ExcelImportExportUtils.getValueByFieldInfo;
 import static top.yumbo.excel.util.ExcelImportExportUtils.setCellValue;
-
+/**
+ * @author jinhua
+ * @date 2021/6/8 15:27
+ */
 public class ForkJoinExportTask<T> extends RecursiveTask<Integer> {
 
         private final int start;

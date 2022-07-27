@@ -5,7 +5,6 @@ import com.alibaba.fastjson.JSONObject;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import top.yumbo.excel.util.CheckLogicUtils;
-import top.yumbo.excel.util.ExcelImportExportUtils;
 import top.yumbo.excel.util.constants.CellEnum;
 
 import javax.validation.Validation;
@@ -13,15 +12,20 @@ import javax.validation.Validator;
 import javax.validation.ValidatorFactory;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.RecursiveTask;
+import java.util.concurrent.RecursiveAction;
+import java.util.function.Consumer;
 
 import static top.yumbo.excel.util.ExcelImportExportUtils.*;
+import static top.yumbo.excel.util.concurrent.ForkJoinImportTask.listToJoinString;
+import static top.yumbo.excel.util.concurrent.ForkJoinImportTask.printRowOfException;
 
 /**
  * @author jinhua
- * @date 2021/6/8 15:27
+ * @date 2022/7/27 23:24
  */
-public class ForkJoinImportTask<T> extends RecursiveTask<List<T>> {
+
+public class ForkJoinImportAction<T> extends RecursiveAction {
+
     private final int start;
     private final int end;
     private final boolean recordAllException;
@@ -32,9 +36,9 @@ public class ForkJoinImportTask<T> extends RecursiveTask<List<T>> {
     private final Class<T> clazz; // 泛型
     private final ValidatorFactory vf = Validation.buildDefaultValidatorFactory();
     private final Validator validator = vf.getValidator();
+    private final Consumer<List<T>> consumer;
 
-
-    public ForkJoinImportTask(JSONObject fieldInfo, Class<T> clazz, Sheet sheet, int start, int end, boolean recordAllException, int limitRowException, int threshold) {
+    public ForkJoinImportAction(JSONObject fieldInfo, Class<T> clazz, Consumer<List<T>> consumer,Sheet sheet, int start, int end, boolean recordAllException, int limitRowException, int threshold) {
         this.fieldInfo = fieldInfo;
         this.clazz = clazz;
         this.sheet = sheet;
@@ -43,28 +47,30 @@ public class ForkJoinImportTask<T> extends RecursiveTask<List<T>> {
         this.threshold = threshold;
         this.limitRowException = limitRowException;
         this.recordAllException = recordAllException;
+        this.consumer = consumer;
     }
 
+
     @Override
-    protected List<T> compute() {
+    protected void compute() {
         int nums = end - start;// 计算有多少行数据
 
         if (nums <= threshold) {
             // 解析数据并且返回List
-            return praseRowsToList();
+            List<T> list = praseRowsToList();
+            // 消费对象
+            consumer.accept(list);
         } else {
             int middle = (start + end) / 2;
 
             // 处理start到middle行号内的数据
-            ForkJoinImportTask<T> left = new ForkJoinImportTask<>(fieldInfo, clazz, sheet, start, middle, recordAllException, limitRowException, threshold);
+            ForkJoinImportAction<T> left = new ForkJoinImportAction<>(fieldInfo, clazz, consumer,sheet, start, middle, recordAllException, limitRowException, threshold);
             left.fork();
             // 处理middle+1到end行号内的数据
-            ForkJoinImportTask<T> right = new ForkJoinImportTask<>(fieldInfo, clazz, sheet, middle + 1, end, recordAllException, limitRowException, threshold);
+            ForkJoinImportAction<T> right = new ForkJoinImportAction<>(fieldInfo, clazz,consumer, sheet, middle + 1, end, recordAllException, limitRowException, threshold);
             right.fork();
-            final List<T> leftList = left.join();
-            final List<T> rightList = right.join();
-            leftList.addAll(rightList);
-            return leftList;
+            left.join();
+            right.join();
         }
     }
 
@@ -189,32 +195,4 @@ public class ForkJoinImportTask<T> extends RecursiveTask<List<T>> {
         });
     }
 
-    /**
-     * 将List String合并
-     */
-    public static String listToJoinString(String join, ArrayList<Object> tempList) {
-        if (tempList == null || tempList.size() == 0) {
-            return null;
-        } else if (tempList.size() == 1) {
-            return tempList.get(0).toString();
-        } else {
-            return tempList.stream().map(String::valueOf).reduce((s1, s2) -> s1 + join + s2).get();
-        }
-    }
-
-
-    /**
-     * 拼接异常日志
-     */
-    public static String printRowOfException(ArrayList<List<String>> rowOfErrMessage) {
-        if (rowOfErrMessage == null || rowOfErrMessage.size() == 0) {
-            return "";
-        } else if (rowOfErrMessage.size() == 1) {
-            return listToString(rowOfErrMessage.get(0));
-        }
-        return rowOfErrMessage.stream().map(ExcelImportExportUtils::listToString).reduce((list1, list2) -> list1 + "\n" + list2).get();
-    }
-
-
 }
-
