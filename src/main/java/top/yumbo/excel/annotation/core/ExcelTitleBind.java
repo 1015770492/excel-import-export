@@ -18,6 +18,12 @@ public @interface ExcelTitleBind {
     String title() default "";
 
     /**
+     * 重复标题头处理，默认根据如果有 下划线 "_" 对标题头进行拆分
+     *
+     */
+    String titleSplit() default "_";
+
+    /**
      * 单元格宽度，对于合并单元格的处理
      * 确定表格的位置采用： 下标（解析过程会得到下标） + 单元格的宽度
      * 这样就可以确定单元格的位子和占据的宽度

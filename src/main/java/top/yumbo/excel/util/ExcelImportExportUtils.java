@@ -17,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 import top.yumbo.excel.annotation.business.ExcelCellStyle;
+import top.yumbo.excel.annotation.business.MapEntry;
 import top.yumbo.excel.annotation.core.ExcelTableHeader;
 import top.yumbo.excel.annotation.core.ExcelTitleBind;
 import top.yumbo.excel.consts.ExcelConstants;
@@ -540,6 +541,39 @@ public class ExcelImportExportUtils {
         return removeColLessZero(allDescData);
     }
 
+    private static class Result {
+        public boolean merged;
+        public int startRow;
+        public int endRow;
+        public int startCol;
+        public int endCol;
+
+        public Result(boolean merged, int startRow, int endRow, int startCol, int endCol) {
+            this.merged = merged;
+            this.startRow = startRow;
+            this.endRow = endRow;
+            this.startCol = startCol;
+            this.endCol = endCol;
+        }
+    }
+
+    public static Result getMergedCellInfo(Sheet sheet, int row, int column) {
+        int sheetMergeCount = sheet.getNumMergedRegions();
+        for (int i = 0; i < sheetMergeCount; i++) {
+            CellRangeAddress range = sheet.getMergedRegion(i);
+            int firstColumn = range.getFirstColumn();
+            int lastColumn = range.getLastColumn();
+            int firstRow = range.getFirstRow();
+            int lastRow = range.getLastRow();
+            if (row >= firstRow && row <= lastRow) {
+                if (column >= firstColumn && column <= lastColumn) {
+                    return new Result(true, firstRow, lastRow, firstColumn, lastColumn);
+                }
+            }
+        }
+        return new Result(false, 0, 0, 0, 0);
+    }
+
     /**
      * 传入Sheet获取一个完整的表格描述信息，将INDEX更新
      *
@@ -551,6 +585,8 @@ public class ExcelImportExportUtils {
         JSONObject tableBodyDesc = getExcelBodyDescInfo(excelDescData);
         Integer height = getTableHeight(tableHeaderDesc);// 得到表头占据了那几行
         JSONObject titleCache = new JSONObject();
+        Boolean enableTitleSplit = tableHeaderDesc.getBoolean(TableEnum.ENABLE_TITLE_SPLIT.name());
+        String globalTitleSplit = tableHeaderDesc.getString(TableEnum.GLOBAL_TITLE_SPLIT.name());
 
         // 补充table每一项的index信息(需要通过excel来操作)
         tableBodyDesc.forEach((fieldName, cellDescArr) -> {
@@ -560,27 +596,62 @@ public class ExcelImportExportUtils {
                 JSONObject cellDesc = (JSONObject) cd;
                 Integer col = cellDesc.getInteger(CellEnum.COL.name());
                 if (col == null) col = -1;
-                // 扫描包含表头的那几行 记录需要记录的标题所在的索引列，填充INDEX
-                for (int i = 0; i < height; i++) {
-                    Row row = sheet.getRow(i);// 得到第i行数据（在表头内）
-                    if (row == null) {
-                        continue;
-                    }
-                    // 遍历这行所有单元格，然后得到表头进行比较找到标题和注解上的titleName相同的单元格
-                    for (Cell cell : row) {
-                        // 得到单元格内容（统一为字符串类型）
-                        String cellValue = getStringCellValue(cell, String.class.getTypeName()).replaceAll("\\s", "");
-                        if (col != -1) {
-                            titleCache.putIfAbsent(cellValue, col);
-                            //说明填了index值，则根据index处理;处理完这个字段了，需要处理下一个
-                            break;
-                        } else {
-                            // 如果标题相同找到了这单元格，获取单元格下标存入
-                            if (cellValue.equals(cellDesc.getString(CellEnum.TITLE_NAME.name()))) {
+
+                if (col != -1) {
+                    //说明填了index值，则根据index处理;处理完这个字段了，需要处理下一个
+                    titleCache.putIfAbsent(cellDesc.getString(CellEnum.TITLE_NAME.name()), col);
+                } else {
+                    // 没有填index的情况，需要扫描表头 找到需要记录的标题所在的索引列，填充INDEX
+                    boolean findFlag = false;//单个注解是否处理完毕
+                    for (int i = 0; i < height; i++) {
+                        Row row = sheet.getRow(i);// 得到第i行数据（在表头内）
+                        if (row == null) {
+                            continue;
+                        }
+                        // 遍历这行所有单元格，然后得到表头进行比较找到标题和注解上的titleName相同的单元格
+                        for (Cell cell : row) {
+                            // 得到单元格内容（统一为字符串类型）
+                            String cellValue = getStringCellValue(cell, String.class.getTypeName()).replaceAll("\\s", "");
+                            String annotationTitle = cellDesc.getString(CellEnum.TITLE_NAME.name());
+                            if (cellValue.equals(annotationTitle)) {
+                                // 如果直接相等，则说明找到了
                                 int columnIndex = cell.getColumnIndex();// 找到了则取出索引存入jsonObject
                                 cellDesc.put(CellEnum.COL.name(), columnIndex); // 补全描述信息
                                 titleCache.putIfAbsent(cellValue, columnIndex);
+                                findFlag = true;
+                                break;// 找到了就直接找下一个
+                            } else if (enableTitleSplit) {
+                                // 如果使用了多级标题，需要先找到多级标题的分隔符
+                                // 默认是 "_"
+                                String titleSplit = cellDesc.getString(CellEnum.TITLE_SPLIT.name());
+                                if (!"_".equals(titleSplit)) {
+                                    // 情形1、如果注解配了特殊的则使用注解上的(优先级最高)
+                                } else if (!"_".equals(globalTitleSplit)) {
+                                    // 情形二、注解上没有配，则看下全局有没有配
+                                    titleSplit = globalTitleSplit;
+                                }
+                                // 将标题通过分隔符进行切割
+                                String title = cellDesc.getString(CellEnum.TITLE_NAME.name());
+                                String[] titleArr = title.split(titleSplit);
+                                if (titleArr.length > 1) {
+                                    LinkedList<String> titleQueue = new LinkedList<>();
+                                    // 需要精确找到子标题，范围已经锁定，通过合并单元格
+                                    for (int j = 0; j < titleArr.length; j++) {
+                                        // 递归查找子标题，一直找到最后一个标题
+                                        titleQueue.addLast(titleArr[j]);
+                                    }
+                                    int columnIndex = findSubTitleByRange(titleQueue, sheet, i, height, 0, row.getLastCellNum());
+                                    if (columnIndex >= 0) {
+                                        cellDesc.put(CellEnum.COL.name(), columnIndex); // 补全描述信息
+                                        titleCache.putIfAbsent(cellValue, columnIndex);
+                                        findFlag = true;
+                                        break;// 找到了就直接找下一个
+                                    }
+                                }
                             }
+                        }
+                        if (findFlag) {
+                            break;// 单个注解处理完毕
                         }
                     }
                 }
@@ -590,6 +661,77 @@ public class ExcelImportExportUtils {
         tableHeaderDesc.put(TableEnum.TITLE_CACHE.name(), titleCache);
         updateTitleIndex(excelDescData);
         return excelDescData;
+    }
+
+
+    /**
+     * 将 findStr分割，将分割后的结果，从 一个方形的矩阵中找出最后一个不可分割的
+     *
+     * @param titleQueue 标题队列，每次会取出一个标题，然后查找
+     * @param sheet      被操作的sheet
+     * @param startRow   起始行
+     * @param endRow     结束行
+     * @param startCol   起始列
+     * @param endCol     结束列
+     * @return
+     */
+    private static int findSubTitleByRange(LinkedList<String> titleQueue, Sheet sheet, int startRow, int endRow, int startCol, int endCol) {
+        if (titleQueue.size() == 0) {
+            return -1;
+        } else if (titleQueue.size() == 1) {
+            // 得到当前标题
+            String currentTitle = titleQueue.removeFirst();
+            for (int i = startRow; i <= endRow; i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) {
+                    continue;
+                }
+                for (int j = startCol; j <= endCol; j++) {
+                    Cell cell = row.getCell(j);
+                    if (cell == null) {
+                        continue;
+                    }
+                    String cellValue = getStringCellValue(cell, String.class.getTypeName()).replaceAll("\\s", "");
+                    if (currentTitle.equals(cellValue)) {
+                        return j;
+                    }
+                }
+            }
+        } else {
+            // 大于1的情况
+            // 得到当前标题
+            String currentTitle = titleQueue.removeFirst();
+            for (int i = startRow; i <= endRow; i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) {
+                    continue;
+                }
+                for (int j = startCol; j <= endCol; j++) {
+                    Cell cell = row.getCell(j);
+                    if (cell == null) {
+                        continue;
+                    }
+                    String cellValue = getStringCellValue(cell, String.class.getTypeName()).replaceAll("\\s", "");
+
+                    if (currentTitle.equals(cellValue)) {
+                        // 找到了前面的标题，继续根据当前标题是否是合并单元格继续找下一个标题
+                        Result mergedCellInfo = getMergedCellInfo(sheet, i, j);
+                        if (i + 1 > endRow) {
+                            return -1;
+                        }
+                        if (mergedCellInfo.merged) {
+                            // 是合并单元格标题则缩小范围
+                            return findSubTitleByRange(titleQueue, sheet, i + 1, endRow, mergedCellInfo.startCol, mergedCellInfo.endCol);
+                        } else {
+                            // 不是合并单元格标题，只有1列
+                            return findSubTitleByRange(titleQueue, sheet, i + 1, endRow, j, j);
+                        }
+                    }
+                }
+            }
+        }
+        // 没找到就返回-1
+        return -1;
     }
 
     /**
@@ -621,12 +763,12 @@ public class ExcelImportExportUtils {
      * 根据MapEntry注解得到字典映射，用于转换
      */
     private static JSONObject getMapByMapEntries(Field field) {
-        final top.yumbo.excel.annotation.business.MapEntry[] mapEntries = field.getDeclaredAnnotationsByType(top.yumbo.excel.annotation.business.MapEntry.class);
+        final MapEntry[] mapEntries = field.getDeclaredAnnotationsByType(MapEntry.class);
         final JSONObject mutiMap = new JSONObject();
         final JSONObject map = new JSONObject();
         final JSONObject reverseMap = new JSONObject();
 
-        for (top.yumbo.excel.annotation.business.MapEntry mapEntry : mapEntries) {
+        for (MapEntry mapEntry : mapEntries) {
             if (mapEntry != null) {
                 map.put(mapEntry.key(), mapEntry.value());
                 reverseMap.put(mapEntry.value(), mapEntry.key());
@@ -934,18 +1076,22 @@ public class ExcelImportExportUtils {
             tableHeader.put(TableEnum.TABLE_HEADER_HEIGHT.name(), excelTableHeaderAnnotation.height());// 表头的高度
             tableHeader.put(TableEnum.RECORD_ALL_EXCEPTIONS.name(), excelTableHeaderAnnotation.recordAllExceptions());// 是否开启记录所有异常
             tableHeader.put(TableEnum.LIMIT_ROW_EXCEPTION.name(), excelTableHeaderAnnotation.limitRowException());// 多少行异常后才终止程序
+            boolean enableTitleSplit = excelTableHeaderAnnotation.enableTitleSplit();
+            String globalTitleSplit = excelTableHeaderAnnotation.globalTitleSplit();
+            tableHeader.put(TableEnum.ENABLE_TITLE_SPLIT.name(), enableTitleSplit);// 默认开启多级标题，默认是下划线作为分隔符
+            tableHeader.put(TableEnum.GLOBAL_TITLE_SPLIT.name(), globalTitleSplit);// 设置默认多级标题的全局分隔符
 
             // 2、得到表的Body信息
             for (Field field : fields) {
                 ExcelTitleBind[] excelTitleBinds = field.getDeclaredAnnotationsByType(ExcelTitleBind.class);
+                // 获取字典映射
+                JSONObject mutiMap = getMapByMapEntries(field);
                 if (excelTitleBinds != null && excelTitleBinds.length > 0) {
                     JSONArray cellDescArr = new JSONArray();
                     for (ExcelTitleBind annotationTitle : excelTitleBinds) {
                         if (annotationTitle != null) {// 找到自定义的注解
                             JSONObject cellDesc = new JSONObject();// 单元格描述信息
                             String title = annotationTitle.title().replaceAll("\\s", "");
-                            // 获取字典映射
-                            JSONObject mutiMap = getMapByMapEntries(field);
                             cellDesc.put(CellEnum.MAP.name(), mutiMap.get(CellEnum.MAP.name()));// 字典映射
                             JSONObject obj = new JSONObject();
                             obj.put(title, mutiMap.get(TableEnum.REVERSE_MAP.name()));// 字典反转
@@ -956,6 +1102,7 @@ public class ExcelImportExportUtils {
                             cellDesc.put(CellEnum.REPLACE_ALL_TYPE.name(), annotationTitle.replaceAllType());// 是否包含替换所有,默认是替换所有
 
                             cellDesc.put(CellEnum.TITLE_NAME.name(), title);// 标题名称
+                            cellDesc.put(CellEnum.TITLE_SPLIT.name(), annotationTitle.titleSplit());// 多级标题分隔符
                             cellDesc.put(CellEnum.FIELD_NAME.name(), field.getName());// 字段名称
                             cellDesc.put(CellEnum.FIELD_TYPE.name(), field.getType().getTypeName());// 字段的类型
                             cellDesc.put(CellEnum.COL.name(), letterToNum(annotationTitle.index()));// 默认的索引位置
@@ -1086,25 +1233,7 @@ public class ExcelImportExportUtils {
             if (as != null) {
                 // 单个样式
                 CellStyle cellStyle;
-                final CellStyleBuilder styleBuilder = CellStyleBuilder.builder()
-                        .fontName(as.fontName())
-                        .fontSize(as.fontSize())
-                        .textAlign(as.textAlign())
-                        .bgColor(as.backgroundColor())
-                        .bold(as.bold())
-                        .locked(as.locked())
-                        .hidden(as.hidden())
-                        .wrapText(as.wrapText())
-                        .verticalAlignment(as.verticalAlign())
-                        .rotation(as.rotation())
-                        .fillPatternType(as.fillPatternType())
-                        .foregroundColor(as.foregroundColor())
-                        .autoShrink(as.autoShrink())
-                        .top(as.top())
-                        .bottom(as.bottom())
-                        .left(as.left())
-                        .right(as.right())
-                        .build();
+                final CellStyleBuilder styleBuilder = CellStyleBuilder.builder().fontName(as.fontName()).fontSize(as.fontSize()).textAlign(as.textAlign()).bgColor(as.backgroundColor()).bold(as.bold()).locked(as.locked()).hidden(as.hidden()).wrapText(as.wrapText()).verticalAlignment(as.verticalAlign()).rotation(as.rotation()).fillPatternType(as.fillPatternType()).foregroundColor(as.foregroundColor()).autoShrink(as.autoShrink()).top(as.top()).bottom(as.bottom()).left(as.left()).right(as.right()).build();
                 if (workbook == null) {
                     cellStyle = styleBuilder.getCellStyle();
                 } else {
@@ -1192,6 +1321,9 @@ public class ExcelImportExportUtils {
         return index;
     }
 
+    /**
+     * 获取单元格值 导出用到了
+     */
     private static String getStringCellValue(Cell cell, CellType cellType) {
         String str = "";
         if (cell.getCellType() == CellType.STRING) {
@@ -1241,10 +1373,37 @@ public class ExcelImportExportUtils {
             str += cell.getBooleanCellValue();
         } else if (cell.getCellType() == CellType.BLANK) {
             str = "";
+        } else if (cell.getCellType() == CellType.FORMULA) {
+            FormulaEvaluator evaluator = cell.getRow().getSheet().getWorkbook().getCreationHelper().createFormulaEvaluator();
+            CellValue evaluatedValue = evaluator.evaluate(cell);
+            str = getFORMULACellValue(evaluatedValue, type);
+        } else {
+            str = "ERROR!";
         }
         return str;
     }
 
+    /**
+     * 获取公式计算后的结果
+     */
+    private static String getFORMULACellValue(CellValue cell, String type) {
+
+        String str = "";
+        if (cell.getCellType() == CellType.STRING) {
+            str = cell.getStringValue();
+        } else if (cell.getCellType() == CellType.NUMERIC) {
+            // 数值类型的
+            str += cell.getNumberValue();
+        } else if (cell.getCellType() == CellType.BOOLEAN) {
+            str += cell.getBooleanValue();
+        } else if (cell.getCellType() == CellType.BLANK) {
+            str = "";
+        } else {
+            str = "_errorCode:" + cell.getErrorValue();
+        }
+
+        return str;
+    }
 
     /**
      * 正则转换
@@ -1270,9 +1429,7 @@ public class ExcelImportExportUtils {
         } else if (fieldInfo.size() == 1) {
             return getValue(row, fieldInfo.get(0).get(0), fieldInfo.get(0).get(1), join, type);
         } else {
-            return fieldInfo.stream()
-                    .map(e -> getValue(row, e.get(0), e.get(1), join, type))
-                    .reduce((s1, s2) -> s1 + join + join + s2).get();
+            return fieldInfo.stream().map(e -> getValue(row, e.get(0), e.get(1), join, type)).reduce((s1, s2) -> s1 + join + join + s2).get();
         }
     }
 
@@ -1370,15 +1527,14 @@ public class ExcelImportExportUtils {
             update.put(CellEnum.REPLACE_ALL_TYPE.name(), replaceType);
             if (replaceType == 1) {
                 // 1.整体替换，合并REPLACE_ALL
-                update.put(CellEnum.REPLACE_ALL.name(),
-                        replaceSet.stream().mapToInt(Integer::valueOf).filter(x -> x > 0).toArray());
+                update.put(CellEnum.REPLACE_ALL.name(), replaceSet.stream().mapToInt(Integer::valueOf).filter(x -> x > 0).toArray());
             }//2.只影响到自己
         }
     }
 
     @Data
     @Builder
-    private static class MapEntry implements Comparable<MapEntry> {
+    private static class MapEntryDO implements Comparable<MapEntryDO> {
         private String key;
         private String value;
         private int id;
@@ -1386,8 +1542,8 @@ public class ExcelImportExportUtils {
         private int length;
 
         @Override
-        public int compareTo(MapEntry o) {
-            return this.getIdx() - o.getIdx();
+        public int compareTo(MapEntryDO another) {
+            return this.getIdx() - another.getIdx();
         }
     }
 
@@ -1418,28 +1574,27 @@ public class ExcelImportExportUtils {
 
         } else {
             StringBuilder valSb = new StringBuilder(value);
-            List<MapEntry> mapEntryList = new ArrayList<>();
+            List<MapEntryDO> mapEntryList = new ArrayList<>();
             // 先找出有多少个
             for (Map.Entry<String, Object> mapEntry : map.entrySet()) {
                 int fromIdx = 0;
                 while ((fromIdx < valSb.length()) && valSb.indexOf(mapEntry.getKey(), fromIdx) != -1) {
                     int idx = valSb.indexOf(mapEntry.getKey(), fromIdx);
                     int length = mapEntry.getKey().length();
-                    mapEntryList.add(MapEntry.builder().idx(idx).length(length)
-                            .key(mapEntry.getKey()).value(mapEntry.getValue().toString()).build());
+                    mapEntryList.add(MapEntryDO.builder().idx(idx).length(length).key(mapEntry.getKey()).value(mapEntry.getValue().toString()).build());
                     fromIdx = idx + length;
                 }
             }
             AtomicInteger id = new AtomicInteger(0);
             // 排完序后进行编号
-            List<MapEntry> sortedMapEntry = mapEntryList.stream().sorted().peek(e -> e.setId(id.getAndIncrement())).collect(Collectors.toList());
+            List<MapEntryDO> sortedMapEntry = mapEntryList.stream().sorted().peek(e -> e.setId(id.getAndIncrement())).collect(Collectors.toList());
             // 得到配置需要替换的
             int[] sortedReplaceAll = Arrays.stream(replaceAll).sorted().toArray();
 
             for (int i = sortedReplaceAll.length - 1; i >= 0; i--) {
                 // 先替换最后一个,这样就不会影响前面的
                 if (sortedReplaceAll[i] <= sortedMapEntry.size()) {
-                    MapEntry mapEntry = sortedMapEntry.get(sortedReplaceAll[i] - 1);
+                    MapEntryDO mapEntry = sortedMapEntry.get(sortedReplaceAll[i] - 1);
                     valSb.replace(mapEntry.getIdx(), mapEntry.getIdx() + mapEntry.getLength(), mapEntry.getValue());
                 }
             }
@@ -1480,8 +1635,7 @@ public class ExcelImportExportUtils {
     public static void setCellValue(Cell cell, Object inputValue, String type, String size) {
 
         final Class<?> fieldType = clazzMap.get(type);
-        if (fieldType == BigDecimal.class || fieldType == Double.class || fieldType == Float.class
-                || fieldType == Long.class || fieldType == Integer.class || fieldType == Short.class) {
+        if (fieldType == BigDecimal.class || fieldType == Double.class || fieldType == Float.class || fieldType == Long.class || fieldType == Integer.class || fieldType == Short.class) {
 
             // 数值类型的统一用double（因为cell的api只提供了double）
             BigDecimal bigDecimal = new BigDecimal(String.valueOf(inputValue));

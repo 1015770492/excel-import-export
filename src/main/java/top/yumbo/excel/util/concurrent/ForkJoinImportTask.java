@@ -88,7 +88,7 @@ public class ForkJoinImportTask<T> extends RecursiveTask<List<T>> {
             ArrayList<String> errMessageList = new ArrayList<>();
             // 记录null的次数
             int countNull = 0;
-            // 将row转JSON，如果有错误则计入到
+            // 将row转JSON，如果有错误则将错误存入errMessageList
             rowToJSONObjectWithRecordError(row, convertedRowJSONObject, errMessageList);
 
             // 判断这行数据是否正常
