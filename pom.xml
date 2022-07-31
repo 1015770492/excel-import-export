@@ -19,6 +19,8 @@
         -->
         <projectUrl>https://github.com/1015770492/excel-import-export.git</projectUrl>
         <serverId>ossrh</serverId><!-- 服务id -->
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     </properties>
 
 
@@ -100,11 +102,11 @@
             <artifactId>poi</artifactId>
             <version>4.1.2</version>
         </dependency>
-<!--        <dependency>-->
-<!--            <groupId>org.apache.poi</groupId>-->
-<!--            <artifactId>poi-ooxml-schemas</artifactId>-->
-<!--            <version>4.1.2</version>-->
-<!--        </dependency>-->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml-schemas</artifactId>
+            <version>4.1.2</version>
+        </dependency>
         <!-- fastjson工具包 -->
         <dependency>
             <groupId>com.alibaba</groupId>
