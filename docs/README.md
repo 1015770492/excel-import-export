@@ -1,5 +1,5 @@
 # excel-import-export 
-[记事本](docs/note.md)
+[记事本](note.md)
 ## 简单介绍
 
 ### 设计的起初原因
