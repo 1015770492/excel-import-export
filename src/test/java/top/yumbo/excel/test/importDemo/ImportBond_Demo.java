@@ -15,7 +15,7 @@ public class ImportBond_Demo {
 
     public static void main(String[] args) throws Exception{
         System.out.println("=====导入年度数据======");
-        String areaYear = "src/main/resources/excel/BIExcelResp.xlsx";
+        String areaYear = "src/test/resources/excel/BIExcelResp.xlsx";
         final long start = System.currentTimeMillis();
         final List<BIExcelResp> bList = ExcelImportExportUtils.importExcel(new FileInputStream(areaYear), BIExcelResp.class,2000);
         final long end = System.currentTimeMillis();

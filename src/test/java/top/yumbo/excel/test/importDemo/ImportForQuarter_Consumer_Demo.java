@@ -1,7 +1,6 @@
 package top.yumbo.excel.test.importDemo;
 
 import top.yumbo.excel.test.entity.ImportForQuarter;
-import top.yumbo.excel.util.ExcelImportExportUtils;
 
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -21,8 +20,8 @@ public class ImportForQuarter_Consumer_Demo {
 
         System.out.println("=====导入季度数据======");
         final long start = System.currentTimeMillis();
-//        String areaQuarter = "src/main/resources/excel/ImportForQuarter.xlsx";
-        String areaQuarter = "src/main/resources/excel/ImportForQuarter_big.xlsx";
+//        String areaQuarter = "src/test/resources/excel/ImportForQuarter.xlsx";
+        String areaQuarter = "src/test/resources/excel/ImportForQuarter_big.xlsx";
 /*
         // 将内部分段处理的数据进行消费
         ExcelImportExportUtils.importExcelConsumer(new FileInputStream(areaQuarter), ImportForQuarter.class, (list) -> {

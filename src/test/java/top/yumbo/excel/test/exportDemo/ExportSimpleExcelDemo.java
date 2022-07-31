@@ -1,10 +1,10 @@
 package top.yumbo.excel.test.exportDemo;
 
 import com.alibaba.fastjson.JSONObject;
-import top.yumbo.excel.entity.TitleBuilder;
-import top.yumbo.excel.entity.TitleBuilders;
 import top.yumbo.excel.test.entity.Export_ImportForQuarter;
 import top.yumbo.excel.test.entity.ImportForQuarter;
+import top.yumbo.excel.entity.TitleBuilder;
+import top.yumbo.excel.entity.TitleBuilders;
 import top.yumbo.excel.util.ExcelImportExportUtils;
 
 import java.io.FileInputStream;
@@ -63,7 +63,7 @@ public class ExportSimpleExcelDemo {
          * 得到List集合
          */
         System.out.println("=====导入季度数据======");
-        String areaQuarter = "src/main/resources/excel/ImportForQuarter.xlsx";
+        String areaQuarter = "src/test/resources/excel/ImportForQuarter.xlsx";
 //        String areaQuarter = "D:/季度数据-原样式导出6000.xlsx";
         final long start1 = System.currentTimeMillis();
         final List<ImportForQuarter> quarterList = ExcelImportExportUtils.importExcel(new FileInputStream(areaQuarter), ImportForQuarter.class, 30000);

@@ -19,7 +19,7 @@ public class ExclToCsv {
 
     public static void main(String[] args) throws Exception {
         // 获取文件路径和文件
-        FileInputStream fis = new FileInputStream("src/main/resources/excel/ImportForQuarter_big.xlsx");
+        FileInputStream fis = new FileInputStream("src/test/resources/excel/ImportForQuarter_big.xlsx");
         // 将输入流转换为工作簿对象
         XSSFWorkbook workbook = new XSSFWorkbook(fis);
         // 获取第一个工作表

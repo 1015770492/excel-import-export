@@ -19,8 +19,8 @@ public class ImportForQuarter_Demo {
 
         System.out.println("=====导入季度数据======");
         final long start = System.currentTimeMillis();
-        String areaQuarter = "src/main/resources/excel/ImportForQuarter.xlsx";
-//        String areaQuarter = "src/main/resources/excel/ImportForQuarter_big.xlsx";
+        String areaQuarter = "src/test/resources/excel/ImportForQuarter.xlsx";
+//        String areaQuarter = "src/test/resources/excel/ImportForQuarter_big.xlsx";
         final List<ImportForQuarter> quarterList = ExcelImportExportUtils.importExcel(new FileInputStream(areaQuarter), ImportForQuarter.class, 2000);
         final long end = System.currentTimeMillis();
         System.out.println("总共耗时" + (end - start) + "毫秒");

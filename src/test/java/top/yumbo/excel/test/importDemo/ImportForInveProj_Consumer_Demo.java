@@ -11,7 +11,7 @@ import java.util.function.Consumer;
 public class ImportForInveProj_Consumer_Demo {
 
     public static void main(String[] args) throws Exception {
-        String file = "src/main/resources/excel/ImportForInveProj.xls";
+        String file = "src/test/resources/excel/ImportForInveProj.xls";
         System.out.println("=====投资项目数据======");
         final long start = System.currentTimeMillis();
         Consumer<List<ImportForInveProj>> consumer = (quarterList) -> {

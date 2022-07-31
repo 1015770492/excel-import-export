@@ -17,8 +17,8 @@ public class ImportForYear_Demo {
     public static void main(String[] args) throws Exception {
 
         System.out.println("=====导入年度数据======");
-        String areaYear = "src/main/resources/excel/ImportForYear.xlsx";
-//        String areaYear = "src/main/resources/excel/ImportForYear_big.xlsx";
+        String areaYear = "src/test/resources/excel/ImportForYear.xlsx";
+//        String areaYear = "src/test/resources/excel/ImportForYear_big.xlsx";
         final long start = System.currentTimeMillis();
         final List<ImportForYear> yearList = ExcelImportExportUtils.importExcel(new FileInputStream(areaYear), ImportForYear.class);
         final long end = System.currentTimeMillis();
