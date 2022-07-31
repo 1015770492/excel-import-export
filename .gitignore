@@ -1,6 +1,6 @@
-/target/
+*/target/
 *.iml
-/.idea/
+*.idea
 /temp.xlsx
 
 !src
