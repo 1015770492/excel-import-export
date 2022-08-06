@@ -2,6 +2,7 @@
 *.iml
 *.idea
 /temp.xlsx
+/src/test/resources/excel/*/
 
 !src
 !docs
