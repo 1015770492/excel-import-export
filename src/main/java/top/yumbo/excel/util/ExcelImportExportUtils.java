@@ -603,6 +603,8 @@ public class ExcelImportExportUtils {
                 } else {
                     // 没有填index的情况，需要扫描表头 找到需要记录的标题所在的索引列，填充INDEX
                     boolean findFlag = false;//单个注解是否处理完毕
+                    String annotationTitle = cellDesc.getString(CellEnum.TITLE_NAME.name());
+                    Integer count = cellDesc.getInteger(CellEnum.TITLE_COUNT.name());
                     for (int i = 0; i < height; i++) {
                         Row row = sheet.getRow(i);// 得到第i行数据（在表头内）
                         if (row == null) {
@@ -612,8 +614,11 @@ public class ExcelImportExportUtils {
                         for (Cell cell : row) {
                             // 得到单元格内容（统一为字符串类型）
                             String cellValue = getStringCellValue(cell, String.class.getTypeName()).replaceAll("\\s", "");
-                            String annotationTitle = cellDesc.getString(CellEnum.TITLE_NAME.name());
-                            if (cellValue.equals(annotationTitle)) {
+                            if (cellValue.equals("")) continue;
+                            // 模糊匹配
+                            Pattern pattern = Pattern.compile(annotationTitle);
+                            Matcher matcher = pattern.matcher(cellValue);
+                            if (cellValue.equals(annotationTitle) || (matcher.find() && (--count == 0))) {
                                 // 如果直接相等，则说明找到了
                                 int columnIndex = cell.getColumnIndex();// 找到了则取出索引存入jsonObject
                                 cellDesc.put(CellEnum.COL.name(), columnIndex); // 补全描述信息
@@ -637,10 +642,10 @@ public class ExcelImportExportUtils {
                                     LinkedList<String> titleQueue = new LinkedList<>();
                                     // 需要精确找到子标题，范围已经锁定，通过合并单元格
                                     for (int j = 0; j < titleArr.length; j++) {
-                                        // 递归查找子标题，一直找到最后一个标题
                                         titleQueue.addLast(titleArr[j]);
                                     }
-                                    int columnIndex = findSubTitleByRange(titleQueue, sheet, i, height, 0, row.getLastCellNum());
+                                    // 递归查找子标题，一直找到最后一个标题
+                                    int columnIndex = findSubTitleByRange(titleQueue, count, sheet, i, height, 0, row.getLastCellNum());
                                     if (columnIndex >= 0) {
                                         cellDesc.put(CellEnum.COL.name(), columnIndex); // 补全描述信息
                                         titleCache.putIfAbsent(cellValue, columnIndex);
@@ -675,12 +680,14 @@ public class ExcelImportExportUtils {
      * @param endCol     结束列
      * @return
      */
-    private static int findSubTitleByRange(LinkedList<String> titleQueue, Sheet sheet, int startRow, int endRow, int startCol, int endCol) {
+    private static int findSubTitleByRange(LinkedList<String> titleQueue, int count, Sheet sheet, int startRow, int endRow, int startCol, int endCol) {
         if (titleQueue.size() == 0) {
             return -1;
         } else if (titleQueue.size() == 1) {
             // 得到当前标题
             String currentTitle = titleQueue.removeFirst();
+            // 模糊匹配
+            Pattern pattern = Pattern.compile(currentTitle);
             for (int i = startRow; i <= endRow; i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) {
@@ -692,7 +699,8 @@ public class ExcelImportExportUtils {
                         continue;
                     }
                     String cellValue = getStringCellValue(cell, String.class.getTypeName()).replaceAll("\\s", "");
-                    if (currentTitle.equals(cellValue)) {
+                    Matcher matcher = pattern.matcher(cellValue);
+                    if (currentTitle.equals(cellValue) || (matcher.find() && (--count == 0))) {
                         return j;
                     }
                 }
@@ -701,6 +709,8 @@ public class ExcelImportExportUtils {
             // 大于1的情况
             // 得到当前标题
             String currentTitle = titleQueue.removeFirst();
+            // 模糊匹配
+            Pattern pattern = Pattern.compile(currentTitle);
             for (int i = startRow; i <= endRow; i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) {
@@ -712,8 +722,8 @@ public class ExcelImportExportUtils {
                         continue;
                     }
                     String cellValue = getStringCellValue(cell, String.class.getTypeName()).replaceAll("\\s", "");
-
-                    if (currentTitle.equals(cellValue)) {
+                    Matcher matcher = pattern.matcher(cellValue);
+                    if (currentTitle.equals(cellValue) || (matcher.find() && (--count == 0))) {
                         // 找到了前面的标题，继续根据当前标题是否是合并单元格继续找下一个标题
                         Result mergedCellInfo = getMergedCellInfo(sheet, i, j);
                         if (i + 1 > endRow) {
@@ -721,10 +731,10 @@ public class ExcelImportExportUtils {
                         }
                         if (mergedCellInfo.merged) {
                             // 是合并单元格标题则缩小范围
-                            return findSubTitleByRange(titleQueue, sheet, i + 1, endRow, mergedCellInfo.startCol, mergedCellInfo.endCol);
+                            return findSubTitleByRange(titleQueue, count, sheet, i + 1, endRow, mergedCellInfo.startCol, mergedCellInfo.endCol);
                         } else {
                             // 不是合并单元格标题，只有1列
-                            return findSubTitleByRange(titleQueue, sheet, i + 1, endRow, j, j);
+                            return findSubTitleByRange(titleQueue, count, sheet, i + 1, endRow, j, j);
                         }
                     }
                 }
@@ -1080,6 +1090,7 @@ public class ExcelImportExportUtils {
             String globalTitleSplit = excelTableHeaderAnnotation.globalTitleSplit();
             tableHeader.put(TableEnum.ENABLE_TITLE_SPLIT.name(), enableTitleSplit);// 默认开启多级标题，默认是下划线作为分隔符
             tableHeader.put(TableEnum.GLOBAL_TITLE_SPLIT.name(), globalTitleSplit);// 设置默认多级标题的全局分隔符
+            HashMap<String, Integer> titleCountMap = new HashMap<>();// 对注解中的标题重复次数进行计数
 
             // 2、得到表的Body信息
             for (Field field : fields) {
@@ -1092,6 +1103,13 @@ public class ExcelImportExportUtils {
                         if (annotationTitle != null) {// 找到自定义的注解
                             JSONObject cellDesc = new JSONObject();// 单元格描述信息
                             String title = annotationTitle.title().replaceAll("\\s", "");
+                            int count = 1;
+                            if (!titleCountMap.containsKey(title)) {
+                                titleCountMap.put(title, count);
+                            } else {
+                                count = titleCountMap.get(title) + 1;// 重复次数加1
+                                titleCountMap.put(title, count);
+                            }
                             cellDesc.put(CellEnum.MAP.name(), mutiMap.get(CellEnum.MAP.name()));// 字典映射
                             JSONObject obj = new JSONObject();
                             obj.put(title, mutiMap.get(TableEnum.REVERSE_MAP.name()));// 字典反转
@@ -1102,6 +1120,7 @@ public class ExcelImportExportUtils {
                             cellDesc.put(CellEnum.REPLACE_ALL_TYPE.name(), annotationTitle.replaceAllType());// 是否包含替换所有,默认是替换所有
 
                             cellDesc.put(CellEnum.TITLE_NAME.name(), title);// 标题名称
+                            cellDesc.put(CellEnum.TITLE_COUNT.name(), count);// 注解中重复标题的计数
                             cellDesc.put(CellEnum.TITLE_SPLIT.name(), annotationTitle.titleSplit());// 多级标题分隔符
                             cellDesc.put(CellEnum.FIELD_NAME.name(), field.getName());// 字段名称
                             cellDesc.put(CellEnum.FIELD_TYPE.name(), field.getType().getTypeName());// 字段的类型

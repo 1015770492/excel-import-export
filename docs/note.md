@@ -9,6 +9,7 @@
 5. 达到增量导入的效果，重跑程序，不需要重新执行 ExcelImportExportUtils.importExcelConsumer 方法，解决海量数据问题
 6. 优化代码，提高效率
 7. 提供与DB（可以是关系型数据库，也可以是非关系型数据库）交互的字典映射。
+8. 模糊匹配标题，对级联也有效 [issue 9](https://github.com/1015770492/excel-import-export/issues/9)
 
 对于问题5，我使用的是forkjoin框架的思想，将任务拆分成ln个job，有m个线程并行执行这n个任务。
 
