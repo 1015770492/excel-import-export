@@ -104,7 +104,7 @@ public @interface ExcelTitleBind {
     int exportPriority() default 0;
 
     /**
-     * 默认不可以为空
+     * 默认可以为空
      */
     boolean nullable() default true;
 

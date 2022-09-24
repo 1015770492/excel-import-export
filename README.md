@@ -5,10 +5,6 @@
 
 如果github.io访问不了，则使用: [github README.md](docs/README.md) 看文档
 
-#### 测试用例
-
-测试用例存放路径：[测试用例](./excel-import-export-test-case)
-
 
 ### 记事本
 

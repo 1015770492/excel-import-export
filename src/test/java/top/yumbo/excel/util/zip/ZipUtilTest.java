@@ -1,8 +1,9 @@
 package top.yumbo.excel.util.zip;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
-
+@Ignore
 public class ZipUtilTest {
 
 

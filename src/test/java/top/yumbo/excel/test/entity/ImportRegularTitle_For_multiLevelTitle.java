@@ -6,9 +6,6 @@ import lombok.Data;
 import top.yumbo.excel.annotation.core.ExcelTableHeader;
 import top.yumbo.excel.annotation.core.ExcelTitleBind;
 
-/**
- * 投资项目导入类
- */
 @Data
 @ExcelTableHeader(height = 4, sheetName = "县市区")
 public class ImportRegularTitle_For_multiLevelTitle {

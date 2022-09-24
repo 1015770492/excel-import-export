@@ -14,13 +14,13 @@ import java.time.LocalDate;
  * @date 2021/6/18 9:16
  */
 @Data
-@ExcelTableHeader( height = 2)
+@ExcelTableHeader( height = 2,recordAllExceptions = false,limitRowException = 20)
 public class BIExcelResp implements Serializable {
 
 
     @ExcelTitleBind(title = "标准债券发行情况")
     private String w1;
-    @ExcelTitleBind(title = "证券代码", nullable = true)
+    @ExcelTitleBind(title = "证券代码", nullable = false)
     private String w2;
     @ExcelTitleBind(title = "证券简称", nullable = true)
     private String w3;
